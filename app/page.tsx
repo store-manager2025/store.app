@@ -1,54 +1,51 @@
-export default function Home() {
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // 실제 로그인 로직이 필요한 경우 API 호출 등을 수행합니다.
+    // 여기서는 단순히 로그인 성공 후 '/home' 페이지로 이동합니다.
+    router.push("/home");
+  };
+
   return (
-    <div className="flex h-full gap-4">
-
-      {/* 왼쪽에 카테고리+상품 목록을 놓을 컨테이너 */}
-      <section className="flex-1 bg-white rounded-md shadow p-4 relative">
-        {/* 카테고리 헤더 */}
-        <div className="flex items-center gap-2 mb-4">
-          <span className="bg-gray-100 text-sm px-2 py-1 rounded">
-            category-1 (server data)
-          </span>
-          {/* 검색 아이콘 등을 예시로 배치 */}
-          <button className="ml-auto">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 103.5 10.5a7.5 7.5 0 0013.15 4.65z"
-              />
-            </svg>
-          </button>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow-md w-80">
+        <h2 className="text-2xl font-bold mb-4 text-center">Login</h2>
+        <div className="mb-4">
+          <label className="block mb-1">Email</label>
+          <input
+            type="email"
+            className="w-full border border-gray-300 p-2 rounded"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
         </div>
-
-        {/* 상품 목록 그리드 */}
-        <div className="grid grid-cols-4 gap-4">
-          {/* 여기서부터 실제 상품 카드들이 들어간다고 가정. */}
-          {Array.from({ length: 16 }).map((_, idx) => (
-            <div
-              key={idx}
-              className="bg-gray-100 h-24 rounded flex items-center justify-center text-gray-500"
-            >
-              Item {idx + 1}
-            </div>
-          ))}
+        <div className="mb-6">
+          <label className="block mb-1">Password</label>
+          <input
+            type="password"
+            className="w-full border border-gray-300 p-2 rounded"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </div>
-      </section>
-
-      {/* 오른쪽 상세 영역 (결제나 주문 상세 등을 표시) */}
-      <section className="w-80 bg-white rounded-md shadow p-4">
-        <h2 className="text-lg font-semibold mb-2">Order Details</h2>
-        <div className="text-sm text-gray-600">
-          여기에 주문 정보를 표시할 수 있습니다.
-        </div>
-      </section>
+        <button
+          type="submit"
+          className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 transition"
+        >
+          Log In
+        </button>
+      </form>
     </div>
   );
 }
