@@ -1,23 +1,27 @@
-import "./globals.css";
-import { ReactNode } from "react";
-import Header from "../components/Header"; 
+"use client";
 
-export const metadata = {
-  title: "My POS App",
-  description: "POS layout example in Next.js",
-};
+import { AnimatePresence, motion } from "framer-motion";
+import "./globals.css";
+import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  return (
-    <html lang="ko">
-      <body className="min-h-screen bg-gray-50 text-gray-800">
-        {/* 헤더 영역 */}
-        <Header />
+  const pathname = usePathname();
 
-        {/* 메인 컨테이너 (좌: Drawer, 우: 메인) */}
-        <div className="flex"> 
-          <main className="flex-1 p-4">{children}</main>
-        </div>
+  return (
+    <html lang="en">
+      <body>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={pathname}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
       </body>
     </html>
   );
