@@ -10,6 +10,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 
   return (
     <html lang="en">
+      <head>
+        <script
+          defer
+          src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
+        />
+      </head>
       <body>
         <AnimatePresence mode="wait">
           <motion.div

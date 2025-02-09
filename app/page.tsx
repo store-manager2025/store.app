@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import axiosInstance from "../lib/axiosInstance";
 
@@ -8,7 +8,18 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [autoLogin, setAutoLogin] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+
+  // ✅ 로그인 페이지 접근 시 토큰이 있으면 자동으로 홈(`/home`)으로 이동
+  useEffect(() => {
+    const token = localStorage.getItem("accessToken");
+    if (token) {
+      router.push("/home");
+    }
+  }, [router]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,8 +31,14 @@ export default function LoginPage() {
       // 백엔드 응답 예시: { message, name, accessToken }
       const { accessToken } = response.data;
       if (accessToken) {
-        // 이후 API 호출시 사용할 토큰을 localStorage에 저장 (또는 다른 저장소 활용)
+        // 토큰을 localStorage에 저장
         localStorage.setItem("accessToken", accessToken);
+        // 자동 로그인을 선택한 경우, autoLogin 플래그도 저장
+        if (autoLogin) {
+          localStorage.setItem("autoLogin", "true");
+        } else {
+          localStorage.removeItem("autoLogin");
+        }
       }
       // 로그인 성공 시 홈 화면으로 이동
       router.push("/home");
@@ -55,6 +72,19 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+        </div>
+        {/* 자동 로그인 체크박스 */}
+        <div className="mb-4 flex items-center">
+          <input
+            type="checkbox"
+            id="autoLogin"
+            checked={autoLogin}
+            onChange={(e) => setAutoLogin(e.target.checked)}
+            className="mr-2"
+          />
+          <label htmlFor="autoLogin" className="text-sm">
+            자동 로그인
+          </label>
         </div>
         <button
           type="submit"
