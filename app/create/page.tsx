@@ -1,31 +1,24 @@
+// pages/create.tsx
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import Script from "next/script";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import axiosInstance from "../../lib/axiosInstance";
 import Spinner from "../../components/Spinner";
+import { useFormStore } from "../../store/formStore";
 
 export default function CreatePage() {
   const router = useRouter();
-
-  // 스텝 관리: 1(매장 이름) → 2(매장 주소) → 3(비밀번호) → 4(스피너)
   const [step, setStep] = useState<number>(1);
 
-  // 입력 데이터
-  const [storeName, setStoreName] = useState("");
-  const [storePlace, setStorePlace] = useState("");
-  const [password, setPassword] = useState("");
+  // Zustand 스토어에서 상태와 업데이트 함수를 가져옴
+  const { storeName, storePlace, password, setStoreName, setStorePlace, setPassword } = useFormStore();
 
-  // 카카오 주소 API 로드 여부 상태
-  const [kakaoLoaded, setKakaoLoaded] = useState(false);
-
-  // 디바운싱(자동 저장)용 타이머 레퍼런스
+  // 디바운싱을 위한 타이머 레퍼런스
   const nameTimerRef = useRef<NodeJS.Timeout | null>(null);
   const placeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pwTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // (선택사항) 로그인 토큰이 없으면 리다이렉트
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (!token) {
@@ -34,99 +27,87 @@ export default function CreatePage() {
     }
   }, [router]);
 
-  // ---------------------------
-  // 뒤로가기 버튼 클릭 시 처리
-  // ---------------------------
   const handleGoBack = () => {
     if (step === 1) {
-      // 첫 단계에서 뒤로가기 버튼 누르면 홈으로 이동
       router.push("/home");
     } else {
       setStep((prev) => prev - 1);
     }
   };
 
-  // --------------------------------------------
-  // 1) 매장 이름 입력
-  // --------------------------------------------
+  // 매장 이름 입력 처리
   const handleChangeName = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setStoreName(e.target.value);
+    const value = e.target.value;
+    setStoreName(value);
     if (nameTimerRef.current) clearTimeout(nameTimerRef.current);
     nameTimerRef.current = setTimeout(() => {
-      console.log("매장 이름 자동저장: ", e.target.value);
+      console.log("매장 이름 자동저장:", value);
+      if (value.trim() !== "") {
+        setStep(2);
+      }
+    }, 2000);
+  };
+
+  // 매장 주소 입력 처리
+  const handleChangePlace = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setStorePlace(value);
+    if (placeTimerRef.current) clearTimeout(placeTimerRef.current);
+    placeTimerRef.current = setTimeout(() => {
+      console.log("매장 주소 자동저장:", value);
+      if (value.trim() !== "") {
+        setStep(3);
+      }
+    }, 2000);
+  };
+
+  // 비밀번호 입력 처리 (Zustand 사용)
+  const handleChangePassword = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+    // Zustand 스토어에 업데이트 (동기적 업데이트)
+    setPassword(val);
+
+    if (pwTimerRef.current) clearTimeout(pwTimerRef.current);
+    pwTimerRef.current = setTimeout(() => {
+      console.log("비밀번호 자동저장:", val);
+      // Zustand의 상태가 최신으로 업데이트되었는지 보장하기 위해 getState()를 사용
+      if (val.length === 4) {
+        console.log("비밀번호 자동저장 후 제출:", val);
+        submitPayload();
+      }
     }, 1000);
   };
 
-  // --------------------------------------------
-  // 2) 매장 주소 입력 (카카오 주소 API 사용)
-  // --------------------------------------------
-  const handleOpenKakaoAddress = () => {
-    // RootLayout에서 <script>가 이미 로드되었으므로,
-    // 브라우저가 스크립트를 완전히 불러왔다면 window.daum?.Postcode가 존재합니다.
-    if (typeof window === "undefined" || !window.daum?.Postcode) {
-      alert("카카오 주소 API가 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  // submitPayload에서 최신 상태를 직접 가져옴
+  const submitPayload = async () => {
+    // useFormStore.getState()를 사용하여 항상 최신 상태를 가져온다.
+    const { storeName, storePlace, password } = useFormStore.getState();
+
+    console.log("Debug: storeName:", storeName);
+    console.log("Debug: storePlace:", storePlace);
+    console.log("Debug: password:", password);
+
+    if (!storeName || !storePlace || password.length !== 4) {
+      alert("모든 필드를 올바르게 입력해주세요.");
       return;
     }
 
-    new (window.daum.Postcode as any)({
-      oncomplete: (data: any) => {
-        setStorePlace(data.address);
-        console.log("카카오 주소 선택: ", data.address);
-      },
-    }).open();
-  };
+    try {
+      const payload = { storeName, storePlace, password };
+      console.log("최종 payload:", payload);
+      await axiosInstance.post("/api/stores", payload);
 
-  const handleChangePlace = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setStorePlace(e.target.value);
-    if (placeTimerRef.current) clearTimeout(placeTimerRef.current);
-    placeTimerRef.current = setTimeout(() => {
-      console.log("매장 주소 자동저장: ", e.target.value);
-    }, 1000);
-  };
-
-  // --------------------------------------------
-  // 3) 비밀번호(4자리)
-  // --------------------------------------------
-  const handleChangePassword = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-    setPassword(val);
-    if (pwTimerRef.current) clearTimeout(pwTimerRef.current);
-    pwTimerRef.current = setTimeout(() => {
-      console.log("비밀번호 자동저장: ", val);
-    }, 1000);
-  };
-
-  // --------------------------------------------
-  // 스텝별 다음단계로 넘어가기
-  // --------------------------------------------
-  const handleNextStep = async () => {
-    if (step < 3) {
-      setStep((prev) => prev + 1);
-    } else {
-      // step === 3 (비밀번호 입력 완료) → 서버 전송
-      try {
-        const payload = { storeName, storePlace, password };
-        console.log("최종 payload:", payload);
-
-        // axiosInstance가 자동으로 Authorization 헤더에 토큰을 추가합니다.
-        await axiosInstance.post("/api/stores", payload);
-
-        // 4번 스텝 - 스피너로 전환 후 홈으로 이동
-        setStep(4);
-        setTimeout(() => {
-          router.push("/home");
-        }, 5000);
-      } catch (error) {
-        console.error("매장 생성 실패:", error);
-        alert("매장 생성에 실패했습니다.");
+      setStep(4); // 스피너 단계로 전환
+      setTimeout(() => {
         router.push("/home");
-      }
+      }, 5000);
+    } catch (error) {
+      console.error("매장 생성 실패:", error);
+      alert("매장 생성에 실패했습니다.");
+      router.push("/home");
     }
   };
 
-  // --------------------------------------------
-  // 스텝 UI
-  // --------------------------------------------
   const renderStep = () => {
     if (step === 4) {
       return <Spinner />;
@@ -158,8 +139,8 @@ export default function CreatePage() {
               placeholder="직접 주소를 입력하거나 검색하기"
             />
             <button
-              onClick={handleOpenKakaoAddress}
-              className="px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition"
+              onClick={() => alert("카카오 주소 API 호출")}
+              className="px-4 py-2 bg-gray-400 text-white rounded-full hover:bg-gray-500 transition"
             >
               카카오 주소 검색
             </button>
@@ -186,7 +167,6 @@ export default function CreatePage() {
 
   return (
     <div className="w-full min-h-screen flex flex-col items-center justify-center bg-gray-100 relative">
-      {/* 왼쪽 상단 뒤로가기 버튼 (스피너 단계 제외) */}
       {step !== 4 && (
         <button
           onClick={handleGoBack}
@@ -195,21 +175,9 @@ export default function CreatePage() {
           뒤로가기
         </button>
       )}
-
-      {/* 스텝별 입력 UI */}
       <div className="bg-white w-[80%] md:w-[600px] h-[300px] rounded-md shadow-md flex flex-col items-center justify-center">
         {renderStep()}
       </div>
-
-      {/* 다음 버튼 (스텝1~3에서만 표시) */}
-      {step < 4 && (
-        <button
-          onClick={handleNextStep}
-          className="mt-8 bg-blue-500 text-white px-6 py-2 rounded-full hover:bg-blue-600 transition"
-        >
-          {step === 3 ? "완료" : "다음"}
-        </button>
-      )}
     </div>
   );
 }
