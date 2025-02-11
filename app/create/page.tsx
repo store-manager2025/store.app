@@ -35,7 +35,9 @@ export default function CreatePage() {
     }
   };
 
-  // 매장 이름 입력 처리
+  // --------------------------------------------
+  // 1) 매장 이름 입력
+  // --------------------------------------------
   const handleChangeName = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setStoreName(value);
@@ -48,20 +50,41 @@ export default function CreatePage() {
     }, 2000);
   };
 
-  // 매장 주소 입력 처리
+  // --------------------------------------------
+  // 2) 매장 주소 입력 (카카오 주소 API 사용)
+  // --------------------------------------------
+  const handleOpenKakaoAddress = () => {
+    if (typeof window === "undefined" || !window.daum?.Postcode) {
+      alert("카카오 주소 API가 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    (new (window.daum.Postcode as any)({
+      oncomplete: (data: any) => {
+        setStorePlace(data.address);
+        console.log("카카오 주소 선택: ", data.address);
+        if (placeTimerRef.current) clearTimeout(placeTimerRef.current);
+        placeTimerRef.current = setTimeout(() => {
+          if (data.address.trim() !== "") {
+            setStep(3);
+          }
+        }, 2000);
+      },
+    })).open();
+  };
+
   const handleChangePlace = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setStorePlace(value);
+    setStorePlace(e.target.value);
     if (placeTimerRef.current) clearTimeout(placeTimerRef.current);
     placeTimerRef.current = setTimeout(() => {
-      console.log("매장 주소 자동저장:", value);
-      if (value.trim() !== "") {
+      console.log("매장 주소 자동저장: ", e.target.value);
+      if (e.target.value.trim() !== "") {
         setStep(3);
       }
     }, 2000);
   };
-
-  // 비밀번호 입력 처리 (Zustand 사용)
+  // --------------------------------------------
+  // 3) 비밀번호(4자리) (Zustand 사용)
+  // --------------------------------------------
   const handleChangePassword = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/\D/g, "").slice(0, 4);
     // Zustand 스토어에 업데이트 (동기적 업데이트)
@@ -122,7 +145,7 @@ export default function CreatePage() {
               type="text"
               value={storeName}
               onChange={handleChangeName}
-              className="w-[300px] h-10 rounded-full border border-gray-300 px-3 outline-none"
+              className="w-[300px] h-10 rounded-md border border-gray-300 px-3 outline-none"
               placeholder="매장 이름을 입력"
             />
           </div>
@@ -135,12 +158,12 @@ export default function CreatePage() {
               type="text"
               value={storePlace}
               onChange={handleChangePlace}
-              className="w-[300px] h-10 rounded-full border border-gray-300 px-3 outline-none mb-2"
+              className="w-[300px] h-10 rounded-md border border-gray-300 px-3 outline-none mb-2"
               placeholder="직접 주소를 입력하거나 검색하기"
             />
             <button
-              onClick={() => alert("카카오 주소 API 호출")}
-              className="px-4 py-2 bg-gray-400 text-white rounded-full hover:bg-gray-500 transition"
+              onClick={handleOpenKakaoAddress}
+              className="mt-4 border-none test-xs text-gray-500 rounded-md hover:text-gray-900 transition"
             >
               카카오 주소 검색
             </button>
@@ -155,7 +178,7 @@ export default function CreatePage() {
               maxLength={4}
               value={password}
               onChange={handleChangePassword}
-              className="w-[300px] h-10 rounded-full border border-gray-300 px-3 outline-none text-center"
+              className="w-[300px] h-10 rounded-md border border-gray-300 px-3 outline-none text-center"
               placeholder="4자리 숫자"
             />
           </div>
@@ -166,16 +189,16 @@ export default function CreatePage() {
   };
 
   return (
-    <div className="w-full min-h-screen flex flex-col items-center justify-center bg-gray-100 relative">
+    <div className="w-full min-h-screen flex flex-col items-center justify-center bg-transparent relative">
       {step !== 4 && (
         <button
           onClick={handleGoBack}
-          className="absolute top-5 left-5 bg-transparent text-gray-500 px-2 py-1 text-sm rounded hover:bg-gray-200"
+          className="absolute top-5 left-5 bg-transparent text-gray-500 px-2 py-1 text-sm rounded hover:text-gray-900"
         >
-          뒤로가기
+          Back
         </button>
       )}
-      <div className="bg-white w-[80%] md:w-[600px] h-[300px] rounded-md shadow-md flex flex-col items-center justify-center">
+      <div className="bg-transparent border-none w-[80%] md:w-[600px] h-[300px] rounded-md flex flex-col items-center justify-center">
         {renderStep()}
       </div>
     </div>
