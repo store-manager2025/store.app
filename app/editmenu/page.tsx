@@ -40,6 +40,9 @@ export default function EditMenuPage() {
   // storeId (localStorage나 다른 곳에서 가져오도록)
   const [storeId, setStoreId] = useState<number | null>(null);
 
+  // 토큰 상태
+  const [token, setToken] = useState<string | null>(null);
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [menus, setMenus] = useState<MenuItem[]>([]);
@@ -54,12 +57,13 @@ export default function EditMenuPage() {
 
   useEffect(() => {
     // 로그인 토큰 확인
-    const token = localStorage.getItem("accessToken");
-    if (!token) {
+    const storedToken = localStorage.getItem("accessToken");
+    if (!storedToken) {
       alert("세션이 만료되었습니다. 다시 로그인해주세요.");
       router.push("/");
       return;
     }
+    setToken(storedToken);
 
     // storeId 확인
     const savedStoreId = localStorage.getItem("currentStoreId");
@@ -68,21 +72,24 @@ export default function EditMenuPage() {
       router.push("/");
       return;
     }
-
     setStoreId(Number(savedStoreId));
   }, [router]);
 
   // storeId가 세팅되면 카테고리 가져오기
   useEffect(() => {
-    if (storeId) {
-      fetchCategories(storeId);
+    if (storeId && token) {
+      fetchCategories(storeId, token);
     }
-  }, [storeId]);
+  }, [storeId, token]);
 
-  const fetchCategories = async (storeId: number) => {
+  const fetchCategories = async (storeId: number, token: string) => {
     try {
       const res = await fetch(`/api/categories/all/${storeId}`, {
         method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // ★ 토큰 추가
+        },
       });
       if (!res.ok) {
         console.error("카테고리 조회 실패:", res.status);
@@ -104,15 +111,19 @@ export default function EditMenuPage() {
 
   // 선택된 카테고리가 바뀌면 해당 카테고리의 메뉴 불러옴
   useEffect(() => {
-    if (selectedCategory) {
-      fetchMenus(selectedCategory.categoryId);
+    if (selectedCategory && token) {
+      fetchMenus(selectedCategory.categoryId, token);
     }
-  }, [selectedCategory]);
+  }, [selectedCategory, token]);
 
-  const fetchMenus = async (categoryId: number) => {
+  const fetchMenus = async (categoryId: number, token: string) => {
     try {
       const res = await fetch(`/api/menus/all/${categoryId}`, {
         method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // ★ 토큰 추가
+        },
       });
       if (!res.ok) {
         console.error("메뉴 조회 실패:", res.status);
@@ -144,16 +155,16 @@ export default function EditMenuPage() {
   const closeAddModal = () => {
     setShowAddModal(false);
     setCurrentCell(null);
-    if (selectedCategory) {
-      fetchMenus(selectedCategory.categoryId);
+    if (selectedCategory && token) {
+      fetchMenus(selectedCategory.categoryId, token);
     }
   };
 
   const closeModifyModal = () => {
     setShowModifyModal(false);
     setSelectedMenu(null);
-    if (selectedCategory) {
-      fetchMenus(selectedCategory.categoryId);
+    if (selectedCategory && token) {
+      fetchMenus(selectedCategory.categoryId, token);
     }
   };
 

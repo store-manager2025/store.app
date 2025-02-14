@@ -27,16 +27,33 @@ export default function ModifyItemModal({ menu, onClose }: Props) {
   const [sizeType, setSizeType] = useState<"FULL" | "HALF">(
     (menu.menuStyle.sizeType as "FULL" | "HALF") || "FULL"
   );
+  // 기존 menu.menuStyle.colorCode가 있다면 초기값으로 사용
+  const [colorCode, setColorCode] = useState(menu.menuStyle.colorCode || "#FAFAFA");
 
-  // 실제로 positionX, positionY도 변경 가능하게 하려면 state로 관리
-  // 여기서는 예시로 sizeType만 변경하게 처리
+  // 토큰
+  const [token, setToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem("accessToken");
+    if (storedToken) {
+      setToken(storedToken);
+    }
+  }, []);
 
   const handleDelete = async () => {
     const confirmDel = confirm("정말 삭제하시겠습니까?");
     if (!confirmDel) return;
     try {
+      if (!token) {
+        alert("토큰이 없습니다. 다시 로그인해주세요.");
+        return;
+      }
       const res = await fetch(`/api/menus/${menu.menuId}`, {
         method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // 토큰 추가
+        },
       });
       if (!res.ok) throw new Error("Fail to delete menu");
       onClose();
@@ -52,6 +69,10 @@ export default function ModifyItemModal({ menu, onClose }: Props) {
       return;
     }
     try {
+      if (!token) {
+        alert("토큰이 없습니다. 다시 로그인해주세요.");
+        return;
+      }
       // PATCH /api/menus
       const bodyData = {
         menuId: menu.menuId,
@@ -59,14 +80,18 @@ export default function ModifyItemModal({ menu, onClose }: Props) {
         menuName,
         price,
         discountRate: 0, // 일단 사용 안 함
-        colorCode: "#F5F5F5",
+        // 아래 값들 추가
+        colorCode,
         positionX: menu.menuStyle.positionX, 
         positionY: menu.menuStyle.positionY,
         sizeType,
       };
       const res = await fetch("/api/menus", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // 토큰 추가
+        },
         body: JSON.stringify(bodyData),
       });
       if (!res.ok) throw new Error("Fail to update menu");
@@ -118,6 +143,14 @@ export default function ModifyItemModal({ menu, onClose }: Props) {
             type="number"
             value={price}
             onChange={(e) => setPrice(Number(e.target.value))}
+          />
+
+          <label>Color</label>
+          <input
+            type="text"
+            value={colorCode}
+            onChange={(e) => setColorCode(e.target.value)}
+            placeholder="#FAFAFA"
           />
         </div>
         <div className="modal-footer">
