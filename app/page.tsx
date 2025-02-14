@@ -22,7 +22,7 @@ export default function LoginPage() {
     e.preventDefault();
     try {
       const response = await axiosInstance.post("/auth/login", {
-        username: email,
+        email: email,
         password: password,
       });
       // 백엔드 응답 예시: { message, name, accessToken, refreshToken }
