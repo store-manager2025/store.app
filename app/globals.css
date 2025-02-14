@@ -7,41 +7,4 @@
   html {
     font-family: 'IBM Plex Mono';
   }
-
-  /* IBM Plex Mono 추가 */
-  @font-face {
-    font-family: 'IBM Plex Mono';
-    font-style: normal;
-    font-display: swap;
-    font-weight: 400;
-    src:
-      local('IBM Plex Mono Text'),
-      local('IBMPlexMono Text'),
-      local('IBMPlexMono-Text'),
-      url('//yzy-sply.com/cdn/shop/t/77/assets/IBMPlexMono-Text.woff2?v=103676405667010909851737826255') format('woff2');
-  }
-
-  @font-face {
-    font-family: 'IBM Plex Mono';
-    font-style: normal;
-    font-display: swap;
-    font-weight: 700;
-    src:
-      local('IBM Plex Mono SemiBold'),
-      local('IBMPlexMono SemiBold'),
-      local('IBMPlexMono-SemiBold'),
-      url('//yzy-sply.com/cdn/shop/t/77/assets/IBMPlexMono-SemiBold.woff2?v=110163878551762144731737826256') format('woff2');
-  }
-}
-
-@layer components {
-  /* IBM Plex Mono를 Tailwind에서 사용할 수 있도록 유틸리티 추가 */
-  .font-plex {
-    font-family: 'IBM Plex Mono', monospace;
-  }
-
-  .font-plex-bold {
-    font-family: 'IBM Plex Mono', monospace;
-    font-weight: 700;
-  }
 }

@@ -8,26 +8,41 @@ export default function EditCategoryPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const storeId = searchParams.get("storeId");
-  
+
   const [categories, setCategories] = useState<any[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isModifyModalOpen, setIsModifyModalOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+
+  // 토큰 가져오기
+  useEffect(() => {
+    const storedToken = localStorage.getItem("accessToken");
+    if (!storedToken) {
+      alert("세션이 만료되었습니다. 다시 로그인해주세요.");
+      router.push("/");
+    } else {
+      setToken(storedToken);
+    }
+  }, [router]);
 
   // 카테고리 목록 조회
   const fetchCategories = async () => {
-    if (!storeId) return;
+    if (!storeId || !token) return;
     try {
       const res = await fetch(`/api/categories/all/${storeId}`, {
         method: "GET",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`, // 🔥 토큰 추가
+        },
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.message || "Fail to fetch categories");
       }
       const data = await res.json();
-      setCategories(data); // data는 CategoryResponseDto 배열
+      setCategories(data);
     } catch (error: any) {
       console.error(error.message);
       alert(error.message);
@@ -41,7 +56,7 @@ export default function EditCategoryPage() {
     } else {
       fetchCategories();
     }
-  }, [storeId]);
+  }, [storeId, token]);
 
   const openAddModal = () => {
     if (categories.length >= 8) {
@@ -67,11 +82,14 @@ export default function EditCategoryPage() {
 
   // 새 카테고리 등록
   const handleAddCategory = async (name: string, color: string) => {
-    if (!storeId) return;
+    if (!storeId || !token) return;
     try {
       const res = await fetch("/api/categories", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`, // 🔥 토큰 추가
+        },
         body: JSON.stringify({
           storeId: Number(storeId),
           categoryName: name,
@@ -93,16 +111,19 @@ export default function EditCategoryPage() {
 
   // 카테고리 수정
   const handleModifyCategory = async (id: number, uiId: number, name: string, color: string) => {
+    if (!token) return;
     try {
       const res = await fetch("/api/categories", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`, // 🔥 토큰 추가
+        },
         body: JSON.stringify({
           categoryId: id,
           uiId: uiId,
           categoryName: name,
           colorCode: color,
-          // positionX, positionY, sizeType 등이 필요하면 추가
         }),
       });
       if (!res.ok) {
@@ -120,11 +141,15 @@ export default function EditCategoryPage() {
 
   // 카테고리 삭제
   const handleDeleteCategory = async (id: number) => {
+    if (!token) return;
     if (!confirm("정말 삭제하시겠습니까?")) return;
     try {
       const res = await fetch(`/api/categories/${id}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`, // 🔥 토큰 추가
+        },
       });
       if (!res.ok) {
         const err = await res.json();
@@ -141,10 +166,7 @@ export default function EditCategoryPage() {
 
   // “Save” 버튼 클릭 시 동작 (필요에 맞춰 수정)
   const handleSave = () => {
-    // 보통은 변경 사항이 바로바로 반영되는 구조라 따로 할 일이 없을 수도 있음
-    // 필요하다면 이곳에서 다른 로직 수행 or Setting 페이지로 이동
     alert("카테고리 설정을 저장했습니다.");
-    // router.push("/setting"); // 예시
   };
 
   return (
@@ -152,7 +174,7 @@ export default function EditCategoryPage() {
       <div className="bg-white bg-opacity-20 border border-gray-400 rounded-2xl p-6 flex flex-col items-center w-3/5">
         <h2 className="text-2xl font-bold mb-8">Edit Categories</h2>
 
-        {/* 카테고리 리스트 (예: category 1, category 2, …) */}
+        {/* 카테고리 리스트 */}
         <div className="flex flex-wrap gap-4 mb-6 justify-center">
           {categories.map((cat) => (
             <div
