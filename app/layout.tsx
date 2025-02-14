@@ -5,7 +5,11 @@ import "./globals.css";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+interface RootLayoutProps {
+  children: ReactNode;
+}
+
+export default function RootLayout({ children }: RootLayoutProps) {
   const pathname = usePathname();
 
   return (
@@ -16,18 +20,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
         />
       </head>
-      <body>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={pathname}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            {children}
-          </motion.div>
-        </AnimatePresence>
+      <body style={{ overflowX: "hidden" }}>
+        <div style={{ position: "relative", minHeight: "100vh" }}>
+              {children}
+        </div>
       </body>
     </html>
   );

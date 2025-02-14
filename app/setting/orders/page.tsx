@@ -18,7 +18,7 @@ export default function setting() {
   }, [router]);
 
   const handleGoBack = () => {
-    router.push("/pos");
+    router.push("/setting");
   };
 
   return (

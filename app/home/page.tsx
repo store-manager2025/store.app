@@ -56,6 +56,7 @@ export default function HomePage() {
       console.error("Logout error: ", error);
     } finally {
       localStorage.removeItem("accessToken");
+      localStorage.removeItem("currentStoreId");
       router.push("/");
     }
   };
@@ -81,7 +82,7 @@ export default function HomePage() {
       setEnteredPassword("");
     }
 
-    // ✅ 입력된 비밀번호가 4자리 이상이면 추가 입력 방지
+    // 입력된 비밀번호가 4자리 이상이면 추가 입력 방지
     if (enteredPassword.length < 4) {
       setEnteredPassword((prev) => prev + num);
     }
@@ -101,16 +102,15 @@ export default function HomePage() {
         storeId: selectedStore.storeId,
         password: enteredPassword,
       });
-      // ✅ 로그인 성공 시 포스 화면으로 이동
+      // 로그인 성공 시 storeId를 localStorage에 저장
+      localStorage.setItem("currentStoreId", selectedStore.storeId);
       router.push("/pos");
     } catch (error: any) {
       if (error.response?.status === 401) {
-        // ✅ 401 오류 무시하고 비밀번호 오류 메시지만 표시
         setLoginError("비밀번호가 틀렸습니다.");
         setEnteredPassword("");
         return;
       }
-      // ✅ 그 외 에러는 콘솔에만 출력 (로그아웃 X)
       console.error("로그인 요청 중 오류 발생:", error);
     }
   };
@@ -220,7 +220,6 @@ export default function HomePage() {
               transition={{ duration: 0.5 }}
               onClick={(e) => e.stopPropagation()}
             >
-
               {/* 입력한 숫자 또는 에러 메시지 표시 영역 */}
               <div className="mb-4 mt-12 text-center text-gray-800 h-10 flex items-center border-b border-gray-300 justify-center">
                 {loginError ? (
@@ -267,7 +266,8 @@ export default function HomePage() {
                       key={index}
                       onClick={handleClick}
                       style={{
-                        clipPath: "polygon(20% 0%,80% 0%,100% 50%,80% 100%,20% 100%,0% 50%)",
+                        clipPath:
+                          "polygon(20% 0%,80% 0%,100% 50%,80% 100%,20% 100%,0% 50%)",
                       }}
                       className="flex items-center justify-center h-12 bg-[#f5f5f5] rounded-full hover:bg-gray-200 transition"
                     >
