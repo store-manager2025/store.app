@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AddCategoryModal from "../../components/AddCategoryModal";
 import ModifyCategoryModal from "../../components/ModifyCategoryModal";
+import axiosInstance from "../../lib/axiosInstance";
 
 export default function EditCategoryPage() {
   const router = useRouter();
@@ -30,19 +31,8 @@ export default function EditCategoryPage() {
   const fetchCategories = async () => {
     if (!storeId || !token) return;
     try {
-      const res = await fetch(`/api/categories/all/${storeId}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`, // 🔥 토큰 추가
-        },
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Fail to fetch categories");
-      }
-      const data = await res.json();
-      setCategories(data);
+      const response = await axiosInstance.get(`/api/categories/all/${storeId}`);
+      setCategories(response.data);
     } catch (error: any) {
       console.error(error.message);
       alert(error.message);
@@ -84,22 +74,11 @@ export default function EditCategoryPage() {
   const handleAddCategory = async (name: string, color: string) => {
     if (!storeId || !token) return;
     try {
-      const res = await fetch("/api/categories", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`, // 🔥 토큰 추가
-        },
-        body: JSON.stringify({
-          storeId: Number(storeId),
-          categoryName: name,
-          colorCode: color,
-        }),
+      await axiosInstance.post("/api/categories", {
+        storeId: Number(storeId),
+        categoryName: name,
+        colorCode: color,
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Fail to create category");
-      }
       alert("카테고리가 생성되었습니다.");
       closeAddModal();
       fetchCategories();
@@ -113,23 +92,12 @@ export default function EditCategoryPage() {
   const handleModifyCategory = async (id: number, uiId: number, name: string, color: string) => {
     if (!token) return;
     try {
-      const res = await fetch("/api/categories", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`, // 🔥 토큰 추가
-        },
-        body: JSON.stringify({
-          categoryId: id,
-          uiId: uiId,
-          categoryName: name,
-          colorCode: color,
-        }),
+      await axiosInstance.patch("/api/categories", {
+        categoryId: id,
+        uiId: uiId,
+        categoryName: name,
+        colorCode: color,
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Fail to modify category");
-      }
       alert("카테고리가 수정되었습니다.");
       closeModifyModal();
       fetchCategories();
@@ -144,17 +112,7 @@ export default function EditCategoryPage() {
     if (!token) return;
     if (!confirm("정말 삭제하시겠습니까?")) return;
     try {
-      const res = await fetch(`/api/categories/${id}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`, // 🔥 토큰 추가
-        },
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Fail to delete category");
-      }
+      await axiosInstance.delete(`/api/categories/${id}`);
       alert("카테고리가 삭제되었습니다.");
       closeModifyModal();
       fetchCategories();

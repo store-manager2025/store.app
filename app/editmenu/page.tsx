@@ -5,6 +5,7 @@ import CategorySidebar from "../../components/CategorySidebar";
 import GridCell from "../../components/GridCell";
 import AddItemModal from "../../components/AddItemModal";
 import ModifyItemModal from "../../components/ModifyItemModal";
+import axiosInstance from "../../lib/axiosInstance"; 
 
 type Category = {
   categoryId: number;
@@ -78,64 +79,39 @@ export default function EditMenuPage() {
   // storeId가 세팅되면 카테고리 가져오기
   useEffect(() => {
     if (storeId && token) {
-      fetchCategories(storeId, token);
+      fetchCategories(storeId);
     }
   }, [storeId, token]);
 
-  const fetchCategories = async (storeId: number, token: string) => {
+  const fetchCategories = async (storeId: number) => {
     try {
-      const res = await fetch(`/api/categories/all/${storeId}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // ★ 토큰 추가
-        },
-      });
-      if (!res.ok) {
-        console.error("카테고리 조회 실패:", res.status);
-        alert("카테고리 조회 실패");
-        return;
-      }
-      const data: Category[] = await res.json();
-      console.log("categories: ", data); // 디버그용
-
+      const { data } = await axiosInstance.get(`/api/categories/all/${storeId}`);
+      console.log("categories: ", data);
       setCategories(data);
       if (data.length > 0) {
-        setSelectedCategory(data[0]); // 첫 카테고리를 자동 선택
+        setSelectedCategory(data[0]);
       }
     } catch (err) {
-      console.error("fetchCategories error:", err);
-      alert("카테고리를 불러오지 못했습니다.");
+      console.error("카테고리 조회 실패:", err);
+      alert("카테고리 조회 실패");
     }
   };
 
-  // 선택된 카테고리가 바뀌면 해당 카테고리의 메뉴 불러옴
+  // 선택된 카테고리가 바뀌면 해당 카테고리의 메뉴 불러오기
   useEffect(() => {
     if (selectedCategory && token) {
-      fetchMenus(selectedCategory.categoryId, token);
+      fetchMenus(selectedCategory.categoryId);
     }
   }, [selectedCategory, token]);
 
-  const fetchMenus = async (categoryId: number, token: string) => {
+  const fetchMenus = async (categoryId: number) => {
     try {
-      const res = await fetch(`/api/menus/all/${categoryId}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // ★ 토큰 추가
-        },
-      });
-      if (!res.ok) {
-        console.error("메뉴 조회 실패:", res.status);
-        alert("메뉴 조회 실패");
-        return;
-      }
-      const data: MenuItem[] = await res.json();
-      console.log("menus: ", data); // 디버그용
+      const { data } = await axiosInstance.get(`/api/menus/all/${categoryId}`);
+      console.log("menus: ", data);
       setMenus(data);
     } catch (err) {
-      console.error("fetchMenus error:", err);
-      alert("메뉴를 불러오지 못했습니다.");
+      console.error("메뉴 조회 실패:", err);
+      alert("메뉴 조회 실패");
     }
   };
 
@@ -156,7 +132,7 @@ export default function EditMenuPage() {
     setShowAddModal(false);
     setCurrentCell(null);
     if (selectedCategory && token) {
-      fetchMenus(selectedCategory.categoryId, token);
+      fetchMenus(selectedCategory.categoryId);
     }
   };
 
@@ -164,64 +140,77 @@ export default function EditMenuPage() {
     setShowModifyModal(false);
     setSelectedMenu(null);
     if (selectedCategory && token) {
-      fetchMenus(selectedCategory.categoryId, token);
+      fetchMenus(selectedCategory.categoryId);
     }
   };
 
   // 실제 UI
   return (
-    <div className="flex w-screen h-screen p-4 overflow-hidden">
-      {/* 1) 왼쪽: 메뉴 그리드 (5 x 4) */}
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <div className="grid grid-cols-5 grid-rows-4 gap-2">
-          {Array.from({ length: 4 }).map((_, rowIndex) =>
-            Array.from({ length: 5 }).map((_, colIndex) => {
-              // 해당 (rowIndex, colIndex)에 들어 있는 메뉴 필터
-              const cellMenus = menus.filter(
-                (m) => m.menuStyle.positionX === colIndex && m.menuStyle.positionY === rowIndex
-              );
-              return (
-                <GridCell
-                  key={`cell-${rowIndex}-${colIndex}`}
-                  row={rowIndex}
-                  col={colIndex}
-                  items={cellMenus}
-                  onCellClick={handleCellClick}
-                  onMenuClick={handleMenuClick}
-                />
-              );
-            })
+    <div className="flex items-center justify-center h-screen w-screen relative">
+      {/* 전체를 감싸는 박스 */}
+      <div className="relative w-4/5 h-4/5 bg-white bg-opacity-20 border border-gray-400 rounded-2xl p-6 flex flex-row shadow-lg">
+        
+        {/* 왼쪽 50% (카테고리 + 그리드) */}
+        <div className="w-1/2 flex flex-col items-center justify-start">
+          
+          {/* 1) 카테고리 바 (가로 정렬) */}
+          <div className="flex flex-row space-x-2 mb-4">
+            {categories.map((cat) => (
+              <CategorySidebar
+                key={cat.categoryId}
+                category={cat}
+                selectedCategoryId={selectedCategory?.categoryId}
+                onSelectCategory={setSelectedCategory}
+              />
+            ))}
+          </div>
+  
+          {/* 2) 메뉴 그리드 */}
+          <div className="w-full h-full flex flex-col items-center justify-center p-4">
+            <div className="w-full h-full grid grid-cols-5 grid-rows-4 gap-1 border border-blue-500 rounded-lg p-2">
+              {Array.from({ length: 4 }).map((_, rowIndex) =>
+                Array.from({ length: 5 }).map((_, colIndex) => {
+                  const cellMenus = menus.filter(
+                    (m) => m.menuStyle.positionX === colIndex && m.menuStyle.positionY === rowIndex
+                  );
+                  return (
+                    <GridCell
+                      key={`cell-${rowIndex}-${colIndex}`}
+                      row={rowIndex}
+                      col={colIndex}
+                      items={cellMenus}
+                      onCellClick={handleCellClick}
+                      onMenuClick={handleMenuClick}
+                    />
+                  );
+                })
+              )}
+            </div>
+          </div>
+  
+        </div>
+  
+        {/* 중앙 구분선 (위아래 마진 포함) */}
+        <div className="my-6 border-l border-gray-400"></div>
+  
+        {/* 오른쪽 50% (모달창 렌더링 영역) */}
+        <div className="w-1/2 flex items-center justify-center">
+          {showAddModal && currentCell && selectedCategory && storeId && (
+            <AddItemModal
+              onClose={closeAddModal}
+              categoryId={selectedCategory.categoryId}
+              storeId={storeId}
+              positionX={currentCell.x}
+              positionY={currentCell.y}
+            />
+          )}
+  
+          {showModifyModal && selectedMenu && (
+            <ModifyItemModal menu={selectedMenu} onClose={closeModifyModal} />
           )}
         </div>
+  
       </div>
-
-      {/* 2) 오른쪽: 카테고리 목록 */}
-      <div className="w-40 flex flex-col border-l border-gray-300 pl-2">
-        {categories.map((cat) => (
-          <CategorySidebar
-            key={cat.categoryId}
-            category={cat}
-            selectedCategoryId={selectedCategory?.categoryId}
-            onSelectCategory={(category) => setSelectedCategory(category)}
-          />
-        ))}
-      </div>
-
-      {/* 3) Add Modal */}
-      {showAddModal && currentCell && selectedCategory && storeId && (
-        <AddItemModal
-          onClose={closeAddModal}
-          categoryId={selectedCategory.categoryId}
-          storeId={storeId}
-          positionX={currentCell.x}
-          positionY={currentCell.y}
-        />
-      )}
-
-      {/* 4) Modify Modal */}
-      {showModifyModal && selectedMenu && (
-        <ModifyItemModal menu={selectedMenu} onClose={closeModifyModal} />
-      )}
     </div>
-  );
-}
+  );    
+}  

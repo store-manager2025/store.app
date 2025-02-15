@@ -26,11 +26,13 @@ export default function CategorySidebar({
   onSelectCategory,
 }: Props) {
   const isSelected = category.categoryId === selectedCategoryId;
+  
   return (
     <button
       onClick={() => onSelectCategory(category)}
-      className={`border border-gray-400 rounded mb-2 p-2 
-                  ${isSelected ? "bg-blue-500 text-white" : "bg-white text-gray-700"}`}
+      className={`border border-gray-400 rounded min-w-[5rem] max-w-full h-10 mb-2 px-4 
+                  ${isSelected ? "bg-blue-500 text-white" : "bg-white text-gray-700"} 
+                  whitespace-nowrap`}
     >
       {category.categoryName}
     </button>
