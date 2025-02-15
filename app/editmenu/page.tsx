@@ -42,7 +42,6 @@ export default function EditMenuPage() {
 
   // storeId (localStorage나 다른 곳에서 가져오도록)
   const [storeId, setStoreId] = useState<number | null>(null);
-
   // 토큰 상태
   const [token, setToken] = useState<string | null>(null);
 
@@ -50,7 +49,7 @@ export default function EditMenuPage() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [menus, setMenus] = useState<MenuItem[]>([]);
 
-  // ** 카테고리 로딩 상태 추가 **
+  // 카테고리 로딩 상태
   const [loadingCategories, setLoadingCategories] = useState<boolean>(false);
 
   // 모달 상태
@@ -60,6 +59,10 @@ export default function EditMenuPage() {
   // 모달에서 사용할 값
   const [currentCell, setCurrentCell] = useState<{ x: number; y: number } | null>(null);
   const [selectedMenu, setSelectedMenu] = useState<MenuItem | null>(null);
+
+  // ** 추가: HALF 메뉴 체크용 **
+  const [hasHalfItem, setHasHalfItem] = useState(false);
+  const [hasHalfInSameCell, setHasHalfInSameCell] = useState(false);
 
   useEffect(() => {
     // 로그인 토큰 확인
@@ -90,7 +93,7 @@ export default function EditMenuPage() {
 
   const fetchCategories = async (storeId: number) => {
     try {
-      setLoadingCategories(true); // 로딩 시작
+      setLoadingCategories(true);
       const { data } = await axiosInstance.get(`/api/categories/all/${storeId}`);
       setCategories(data);
       if (data.length > 0) {
@@ -100,7 +103,7 @@ export default function EditMenuPage() {
       console.error("카테고리 조회 실패:", err);
       alert("카테고리 조회 실패");
     } finally {
-      setLoadingCategories(false); // 로딩 종료
+      setLoadingCategories(false);
     }
   };
 
@@ -121,16 +124,45 @@ export default function EditMenuPage() {
     }
   };
 
-  // 빈칸(+) 클릭 -> AddItemModal 열기
+  /**
+   * 셀 빈칸(+) 클릭 -> AddItemModal 열기
+   * 
+   * 1) 해당 셀의 메뉴 중 HALF 메뉴가 있는지 체크 → hasHalfItem = true/false
+   * 2) showModifyModal = false (Modify 모달 닫기)
+   * 3) showAddModal = true (Add 모달 열기)
+   */
   const handleCellClick = (x: number, y: number) => {
+    const cellMenus = menus.filter(
+      (m) => m.menuStyle.positionX === x && m.menuStyle.positionY === y
+    );
+    const hasHalf = cellMenus.some((m) => m.menuStyle.sizeType === "HALF");
+    setHasHalfItem(hasHalf);
+
     setCurrentCell({ x, y });
-    setShowAddModal(true);
+    setShowModifyModal(false); // 다른 모달 닫기
+    setShowAddModal(true);     // 이 모달 열기
   };
 
-  // 메뉴 클릭 -> ModifyItemModal 열기
+  /**
+   * 메뉴 클릭 -> ModifyItemModal 열기
+   * 
+   * 1) 해당 셀에 HALF 메뉴가 있는지 체크 → hasHalfInSameCell = true/false
+   * 2) showAddModal = false (Add 모달 닫기)
+   * 3) showModifyModal = true (Modify 모달 열기)
+   */
   const handleMenuClick = (menu: MenuItem) => {
+    const { positionX, positionY } = menu.menuStyle;
+    const cellMenus = menus.filter(
+      (m) =>
+        m.menuStyle.positionX === positionX && 
+        m.menuStyle.positionY === positionY
+    );
+    const hasHalf = cellMenus.some((m) => m.menuStyle.sizeType === "HALF");
+
+    setHasHalfInSameCell(hasHalf);
     setSelectedMenu(menu);
-    setShowModifyModal(true);
+    setShowAddModal(false);   // 다른 모달 닫기
+    setShowModifyModal(true); // 이 모달 열기
   };
 
   // 모달에서 저장/취소 후 -> 목록 다시 불러오기
@@ -163,7 +195,6 @@ export default function EditMenuPage() {
 
         {/* 왼쪽 50% (카테고리 + 그리드) */}
         <div className="w-1/2 flex flex-col justify-start mr-4">
-          {/* 카테고리 로딩 중이면 스피너 표시, 아니면 카테고리 표시 */}
           {loadingCategories ? (
             <div className="flex flex-col w-full h-full items-center justify-center">
               <Spinner />
@@ -184,7 +215,7 @@ export default function EditMenuPage() {
 
               {/* 2) 메뉴 그리드 */}
               <div className="w-full h-full flex flex-col items-center justify-center p-4">
-                <div className="w-full h-full grid grid-cols-5 grid-rows-4 gap-1 border border-blue-500 rounded-lg p-2 mb-2">
+                <div className="w-full h-full grid grid-cols-5 grid-rows-4 gap-1  rounded-lg mb-2">
                   {Array.from({ length: 4 }).map((_, rowIndex) =>
                     Array.from({ length: 5 }).map((_, colIndex) => {
                       const cellMenus = menus.filter(
@@ -210,8 +241,8 @@ export default function EditMenuPage() {
           )}
         </div>
 
-        {/* 중앙 구분선 (위아래 마진 포함) */}
-        <div className="my-6 border-l border-gray-400"></div>
+        {/* 중앙 구분선 */}
+        <div className="my-6 md:border-none border-l border-gray-400"></div>
 
         {/* 오른쪽 50% (모달창 렌더링 영역) */}
         <div className="w-1/2 flex items-center justify-center">
@@ -222,11 +253,16 @@ export default function EditMenuPage() {
               storeId={storeId}
               positionX={currentCell.x}
               positionY={currentCell.y}
+              hasHalfItem={hasHalfItem}
             />
           )}
 
           {showModifyModal && selectedMenu && (
-            <ModifyItemModal menu={selectedMenu} onClose={closeModifyModal} />
+            <ModifyItemModal
+              menu={selectedMenu}
+              onClose={closeModifyModal}
+              hasHalfInSameCell={hasHalfInSameCell}
+            />
           )}
         </div>
       </div>

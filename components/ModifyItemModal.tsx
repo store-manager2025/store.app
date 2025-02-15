@@ -1,168 +1,234 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { HexColorPicker } from "react-colorful";
+import axiosInstance from "../lib/axiosInstance";
 
 type MenuItem = {
   menuId: number;
+  uiId: number; // 서버로는 보내지 않음
   menuName: string;
   price: number;
   discountRate?: number;
-  uiId: number;
   menuStyle: {
-    uiId: number;
+    uiId: number; // 서버로는 보내지 않음
     colorCode: string;
     positionX?: number;
     positionY?: number;
-    sizeType?: string; 
+    sizeType?: string;
   };
 };
 
 interface Props {
   menu: MenuItem;
   onClose: () => void;
+  hasHalfInSameCell: boolean; // ← 추가 (해당 셀에 HALF가 있는지 여부)
 }
 
-export default function ModifyItemModal({ menu, onClose }: Props) {
+export default function ModifyItemModal({
+  menu,
+  onClose,
+  hasHalfInSameCell,
+}: Props) {
   const [menuName, setMenuName] = useState(menu.menuName);
   const [price, setPrice] = useState(menu.price);
   const [sizeType, setSizeType] = useState<"FULL" | "HALF">(
     (menu.menuStyle.sizeType as "FULL" | "HALF") || "FULL"
   );
-  // 기존 menu.menuStyle.colorCode가 있다면 초기값으로 사용
-  const [colorCode, setColorCode] = useState(menu.menuStyle.colorCode || "#FAFAFA");
+  const [colorCode, setColorCode] = useState(
+    menu.menuStyle.colorCode || "#FAFAFA"
+  );
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
 
-  // 토큰
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("accessToken");
-    if (storedToken) {
-      setToken(storedToken);
-    }
+    if (storedToken) setToken(storedToken);
   }, []);
 
-  const handleDelete = async () => {
-    const confirmDel = confirm("정말 삭제하시겠습니까?");
-    if (!confirmDel) return;
-    try {
-      if (!token) {
-        alert("토큰이 없습니다. 다시 로그인해주세요.");
-        return;
+  useEffect(() => {
+    setSizeType("HALF");
+  }, [hasHalfInSameCell]);
+
+  // 컬러 피커 외부 클릭 시 닫기
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        isColorPickerOpen &&
+        colorPickerRef.current &&
+        !colorPickerRef.current.contains(event.target as Node)
+      ) {
+        setIsColorPickerOpen(false);
       }
-      const res = await fetch(`/api/menus/${menu.menuId}`, {
-        method: "DELETE",
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isColorPickerOpen]);
+
+  const handleDelete = async () => {
+    if (!token) {
+      alert("토큰이 없습니다. 다시 로그인해주세요.");
+      return;
+    }
+    try {
+      await axiosInstance.delete(`/api/menus/${menu.menuId}`, {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // 토큰 추가
+          Authorization: `Bearer ${token}`,
         },
       });
-      if (!res.ok) throw new Error("Fail to delete menu");
       onClose();
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
       alert("메뉴 삭제 실패");
     }
   };
 
   const handleSave = async () => {
-    if (!menuName || price < 0) {
+    if (!menuName.trim() || price < 0) {
       alert("이름과 가격을 확인하세요.");
       return;
     }
+    if (!token) {
+      alert("토큰이 없습니다. 다시 로그인해주세요.");
+      return;
+    }
+    // uiId는 보내지 않도록
+    const bodyData = {
+      menuId: menu.menuId,
+      menuName,
+      price,
+      discountRate: 0,
+      colorCode,
+      positionX: menu.menuStyle.positionX,
+      positionY: menu.menuStyle.positionY,
+      sizeType,
+    };
     try {
-      if (!token) {
-        alert("토큰이 없습니다. 다시 로그인해주세요.");
-        return;
-      }
-      // PATCH /api/menus
-      const bodyData = {
-        menuId: menu.menuId,
-        uiId: menu.uiId,
-        menuName,
-        price,
-        discountRate: 0, // 일단 사용 안 함
-        // 아래 값들 추가
-        colorCode,
-        positionX: menu.menuStyle.positionX, 
-        positionY: menu.menuStyle.positionY,
-        sizeType,
-      };
-      const res = await fetch("/api/menus", {
-        method: "PATCH",
-        headers: { 
+      await axiosInstance.patch("/api/menus", bodyData, {
+        headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // 토큰 추가
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(bodyData),
       });
-      if (!res.ok) throw new Error("Fail to update menu");
       onClose();
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
       alert("메뉴 수정 실패");
     }
   };
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal-content">
-        <div className="modal-header">Modify Item</div>
-        <div className="modal-body">
-          {/* Fullsize/Halfsize 선택 */}
-          <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
-            <label>
-              <input
-                type="radio"
-                name="sizeType"
-                value="FULL"
-                checked={sizeType === "FULL"}
-                onChange={() => setSizeType("FULL")}
-              />
-              Full Size
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="sizeType"
-                value="HALF"
-                checked={sizeType === "HALF"}
-                onChange={() => setSizeType("HALF")}
-              />
-              Half Size
-            </label>
-          </div>
+    <div className="relative font-mono p-6 w-80 bg-white">
+      <h2 className="text-md text-center font-semibold mb-4 text-gray-700">
+        Modify Item
+      </h2>
 
-          <label>Name</label>
+      {/* Fullsize / Halfsize 선택 */}
+      <div className="flex justify-center gap-4 mb-4">
+        <label className="flex items-center space-x-2">
+          <input
+            type="radio"
+            name="sizeType"
+            value="FULL"
+            checked={sizeType === "FULL"}
+            onChange={() => setSizeType("FULL")}
+            className="w-4 h-4"
+            disabled={hasHalfInSameCell}
+            // ← 셀에 HALF가 있다면 FULL 불가
+          />
+          <span className="text-gray-700">Full Size</span>
+        </label>
+        <label className="flex items-center space-x-2">
+          <input
+            type="radio"
+            name="sizeType"
+            value="HALF"
+            checked={sizeType === "HALF"}
+            onChange={() => setSizeType("HALF")}
+            className="w-4 h-4"
+          />
+          <span className="text-gray-700">Half Size</span>
+        </label>
+      </div>
+
+      {/* 메뉴 이름 입력 */}
+      <div className="space-y-3 text-sm">
+        <div className="flex items-center gap-3">
+          <label className="w-16 text-gray-700">Name</label>
           <input
             type="text"
             value={menuName}
             onChange={(e) => setMenuName(e.target.value)}
+            placeholder="Enter menu name"
+            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+        </div>
 
-          <label>Price</label>
+        <div className="flex items-center gap-3">
+          <label className="w-16 text-gray-700">Price</label>
           <input
             type="number"
             value={price}
             onChange={(e) => setPrice(Number(e.target.value))}
+            placeholder="Enter menu price"
+            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+        </div>
 
-          <label>Color</label>
-          <input
-            type="text"
-            value={colorCode}
-            onChange={(e) => setColorCode(e.target.value)}
-            placeholder="#FAFAFA"
-          />
+        <div className="relative">
+          <div className="flex items-center gap-3">
+            <label className="mr-[0.4rem] text-gray-700">Color</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={colorCode}
+                readOnly
+                onClick={() => setIsColorPickerOpen(true)}
+                placeholder="#FAFAFA"
+                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              />
+              <div
+                className="w-12 h-[2.4rem] border rounded"
+                style={{ backgroundColor: colorCode }}
+                onClick={() => setIsColorPickerOpen(true)}
+              />
+            </div>
+          </div>
+          {isColorPickerOpen && (
+            <div
+              ref={colorPickerRef}
+              className="absolute z-10 bg-white p-2 border rounded shadow mt-2"
+            >
+              <HexColorPicker color={colorCode} onChange={setColorCode} />
+            </div>
+          )}
         </div>
-        <div className="modal-footer">
-          <button onClick={handleSave}>Save</button>
-          <button onClick={onClose}>Cancel</button>
-          <button
-            onClick={handleDelete}
-            style={{ color: "red", marginLeft: "20px" }}
-          >
-            Delete
-          </button>
-        </div>
+      </div>
+
+      {/* 버튼들 */}
+      <div className="mt-6 text-xs flex justify-center gap-4">
+        <button
+          onClick={handleSave}
+          className="px-5 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          Save
+        </button>
+        <button
+          onClick={onClose}
+          className="px-4 py-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleDelete}
+          className="px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+        >
+          Delete
+        </button>
       </div>
     </div>
   );

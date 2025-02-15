@@ -47,7 +47,7 @@ export default function GridCell({
         onClick={() => onCellClick(col, row)}
         className={`${baseStyle} border border-gray-400 bg-gray-300 flex items-center justify-center`}
       >
-        <Plus className="w-6 h-6" />
+        <Plus className="w-6 h-6 opacity-20" />
       </button>
     );
   }
@@ -86,9 +86,9 @@ export default function GridCell({
         {halfItems.length === 1 && (
           <button
             onClick={() => onCellClick(col, row)}
-            className="flex-1 flex items-center justify-center bg-gray-300"
+            className="flex-1 flex items-center border border-gray-400 justify-center bg-gray-300"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 opacity-20" />
           </button>
         )}
       </div>
