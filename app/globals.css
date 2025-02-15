@@ -7,4 +7,21 @@
   html {
     font-family: 'IBM Plex Mono';
   }
+
+  .fade-out {
+    opacity: 1;
+    transition: opacity 0.5s;
+  }
+  .fade-out.fade-out-active {
+    opacity: 0;
+  }
+  
+  .fade-in {
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+  .fade-in.fade-in-active {
+    opacity: 1;
+  }
+  
 }

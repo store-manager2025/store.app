@@ -1,5 +1,6 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { HexColorPicker } from "react-colorful";
 
 type AddCategoryModalProps = {
   isOpen: boolean;
@@ -13,7 +14,28 @@ export default function AddCategoryModal({
   onSubmit,
 }: AddCategoryModalProps) {
   const [name, setName] = useState("");
-  const [color, setColor] = useState("");
+  const [color, setColor] = useState("#FFFFFF");
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        colorPickerRef.current &&
+        !colorPickerRef.current.contains(event.target as Node)
+      ) {
+        setIsColorPickerOpen(false);
+      }
+    }
+
+    if (isColorPickerOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isColorPickerOpen]);
 
   if (!isOpen) return null;
 
@@ -26,40 +48,59 @@ export default function AddCategoryModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-700 bg-opacity-70 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-8 min-w-[300px]">
-        <h3 className="text-xl font-bold mb-4">Add New Category</h3>
-        <div className="mb-4">
-          <label className="block text-sm font-semibold mb-1">Name</label>
-          <input
-            type="text"
-            className="border w-full px-2 py-1"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
+    <div className="relative font-mono">
+      <div className="p-6 w-80">
+        <h2 className="text-md font-semibold text-center font-semibold mb-4 text-gray-700">
+          Add New Category
+        </h2>
+
+        {/* 입력 필드 */}
+        <div className="space-y-3">
+          <div className="flex flex-row items-center text-sm gap-4">
+            <label className="w-[3rem] text-gray-700 block">Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter category name"
+              className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="relative">
+            <div className="flex flex-row items-center text-sm gap-4">
+              <label className="w-[3rem] text-gray-700 block">Color</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={color}
+                  readOnly
+                  onClick={() => setIsColorPickerOpen(true)}
+                  placeholder="#FFFFFF"
+                  className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                />
+                <div
+                  className="w-14 h-10 border rounded cursor-pointer"
+                  style={{ backgroundColor: color }}
+                  onClick={() => setIsColorPickerOpen(true)}
+                />
+              </div>
+            </div>
+            {isColorPickerOpen && (
+              <div ref={colorPickerRef} className="absolute left-0 mt-2 z-10 bg-white p-4 border rounded shadow-lg">
+                <HexColorPicker color={color} onChange={setColor} />
+              </div>
+            )}
+          </div>
         </div>
-        <div className="mb-4">
-          <label className="block text-sm font-semibold mb-1">Color</label>
-          <input
-            type="text"
-            className="border w-full px-2 py-1"
-            placeholder="#FFFFFF"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-          />
-        </div>
-        <div className="flex justify-end space-x-2">
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Save
-          </button>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-          >
+
+        {/* 버튼 */}
+        <div className="mt-6 text-xs flex justify-center space-x-2">
+          <button onClick={onClose} className="w-16 py-1 bg-gray-300 rounded hover:bg-gray-400">
             Cancel
+          </button>
+          <button onClick={handleSave} className="w-16 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+            Save
           </button>
         </div>
       </div>
