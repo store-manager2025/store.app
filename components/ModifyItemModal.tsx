@@ -5,23 +5,23 @@ import axiosInstance from "../lib/axiosInstance";
 
 type MenuItem = {
   menuId: number;
-  uiId: number; // 서버로는 보내지 않음
+  uiId: number; // 서버로는 안 보냄
   menuName: string;
   price: number;
   discountRate?: number;
   menuStyle: {
-    uiId: number; // 서버로는 보내지 않음
+    uiId: number; // 서버로는 안 보냄
     colorCode: string;
     positionX?: number;
     positionY?: number;
-    sizeType?: string;
+    sizeType?: string; // "FULL" | "HALF"
   };
 };
 
 interface Props {
   menu: MenuItem;
   onClose: () => void;
-  hasHalfInSameCell: boolean; // ← 추가 (해당 셀에 HALF가 있는지 여부)
+  hasHalfInSameCell: boolean; // 해당 셀에 HALF가 있으면 FULL 선택 불가
 }
 
 export default function ModifyItemModal({
@@ -47,9 +47,13 @@ export default function ModifyItemModal({
     if (storedToken) setToken(storedToken);
   }, []);
 
+  // 추가: menu prop이 변경될 때마다 내부 state 재할당
   useEffect(() => {
-    setSizeType("HALF");
-  }, [hasHalfInSameCell]);
+    setMenuName(menu.menuName);
+    setPrice(menu.price);
+    setSizeType((menu.menuStyle.sizeType as "FULL" | "HALF") || "FULL");
+    setColorCode(menu.menuStyle.colorCode || "#FAFAFA");
+  }, [menu]);
 
   // 컬러 피커 외부 클릭 시 닫기
   useEffect(() => {
@@ -96,7 +100,9 @@ export default function ModifyItemModal({
       alert("토큰이 없습니다. 다시 로그인해주세요.");
       return;
     }
-    // uiId는 보내지 않도록
+
+    // HALF가 이미 있으면 FULL 불가
+    // (hasHalfInSameCell이 true면, 여기서도 FULL 선택 disabled)
     const bodyData = {
       menuId: menu.menuId,
       menuName,
@@ -107,6 +113,7 @@ export default function ModifyItemModal({
       positionY: menu.menuStyle.positionY,
       sizeType,
     };
+
     try {
       await axiosInstance.patch("/api/menus", bodyData, {
         headers: {
@@ -138,7 +145,7 @@ export default function ModifyItemModal({
             onChange={() => setSizeType("FULL")}
             className="w-4 h-4"
             disabled={hasHalfInSameCell}
-            // ← 셀에 HALF가 있다면 FULL 불가
+            // 셀에 HALF가 있다면 FULL 불가
           />
           <span className="text-gray-700">Full Size</span>
         </label>
@@ -179,6 +186,7 @@ export default function ModifyItemModal({
           />
         </div>
 
+        {/* 색상 */}
         <div className="relative">
           <div className="flex items-center gap-3">
             <label className="mr-[0.4rem] text-gray-700">Color</label>

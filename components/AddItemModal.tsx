@@ -9,7 +9,7 @@ interface Props {
   storeId: number;
   positionX: number;
   positionY: number;
-  hasHalfItem: boolean; // ← 셀에 HALF 메뉴가 있는지 여부
+  hasHalfItem: boolean; // 셀에 HALF 메뉴가 있는지 여부
 }
 
 export default function AddItemModal({
@@ -22,6 +22,7 @@ export default function AddItemModal({
 }: Props) {
   const [menuName, setMenuName] = useState("");
   const [price, setPrice] = useState<number>(0);
+  // 기본값 HALF
   const [sizeType, setSizeType] = useState<"FULL" | "HALF">("HALF");
   const [colorCode, setColorCode] = useState("#FAFAFA");
   const [token, setToken] = useState<string | null>(null);
@@ -32,10 +33,6 @@ export default function AddItemModal({
   useEffect(() => {
     const storedToken = localStorage.getItem("accessToken");
     if (storedToken) setToken(storedToken);
-  }, []);
-
-  useEffect(() => {
-    setSizeType("HALF");
   }, []);
 
   // 바깥 클릭 감지
@@ -87,8 +84,8 @@ export default function AddItemModal({
   };
 
   return (
-    <div className="relative font-mono p-6 w-80 bg-white">
-      <h2 className="text-md text-center font-semibold mb-4 text-gray-700">
+    <div className="relative p-6 w-80 bg-white border rounded shadow">
+      <h2 className="text-xl text-center font-semibold mb-4 text-gray-700">
         Add New Item
       </h2>
 
@@ -103,7 +100,7 @@ export default function AddItemModal({
             onChange={() => setSizeType("FULL")}
             className="w-4 h-4"
             disabled={hasHalfItem} 
-            // ← 셀에 HALF가 이미 있다면 FULL 선택 불가
+            // 셀에 HALF 메뉴가 이미 있다면 FULL 선택 불가
           />
           <span className="text-gray-700">Full Size</span>
         </label>
@@ -120,7 +117,7 @@ export default function AddItemModal({
         </label>
       </div>
 
-      {/* 메뉴 이름 입력 */}
+      {/* 입력 필드 */}
       <div className="space-y-3 text-sm">
         <div className="flex items-center gap-3">
           <label className="w-16 text-gray-700">Name</label>
@@ -147,7 +144,7 @@ export default function AddItemModal({
         {/* 색상 필드 */}
         <div className="relative">
           <div className="flex items-center gap-3">
-            <label className="mr-[0.4rem] text-gray-700">Color</label>
+            <label className="text-gray-700">Color</label>
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -158,7 +155,7 @@ export default function AddItemModal({
                 className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               />
               <div
-                className="w-12 h-[2.4rem] border rounded"
+                className="w-10 h-6 border rounded"
                 style={{ backgroundColor: colorCode }}
                 onClick={() => setIsColorPickerOpen(true)}
               />
@@ -170,22 +167,36 @@ export default function AddItemModal({
               className="absolute z-10 bg-white p-3 border rounded shadow mt-2"
             >
               <HexColorPicker color={colorCode} onChange={setColorCode} />
+              <div className="mt-2 flex justify-end gap-2">
+                <button
+                  onClick={() => setIsColorPickerOpen(false)}
+                  className="px-3 py-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => setIsColorPickerOpen(false)}
+                  className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                  확인
+                </button>
+              </div>
             </div>
           )}
         </div>
       </div>
 
       {/* 버튼 */}
-      <div className="mt-6 text-xs flex justify-center gap-4">
+      <div className="mt-6 flex justify-center gap-4">
         <button
           onClick={onClose}
-          className="px-4 py-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+          className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
         >
           Cancel
         </button>
         <button
           onClick={handleSave}
-          className="px-5 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+          className="px-5 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
           Save
         </button>

@@ -8,7 +8,7 @@ import { Settings } from "lucide-react";
 
 // 컴포넌트
 import CategoryButton from "../../components/CategoryButton";
-import MenuButton from "../../components/MenuButton";
+import MenuButton from "../../components/PosMenuButton";
 import SelectedMenuList from "../../components/SelectedMenuList";
 
 export default function PosPage() {

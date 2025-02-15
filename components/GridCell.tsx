@@ -1,15 +1,17 @@
 "use client";
-import React from "react";
+import React, { useRef } from "react";
 import { Plus } from "lucide-react";
+import { useDrop } from "react-dnd";
+import MenuButton from "./MenuButton";
 
 type MenuItem = {
   menuId: number;
   menuName: string;
   price: number;
   discountRate?: number;
-  uiId: number;
+  uiId: number; // 서버로는 안 보냄
   menuStyle: {
-    uiId: number;
+    uiId: number; // 서버로는 안 보냄
     colorCode: string;
     positionX?: number;
     positionY?: number;
@@ -23,77 +25,104 @@ interface Props {
   items: MenuItem[];
   onCellClick: (x: number, y: number) => void;
   onMenuClick: (menu: MenuItem) => void;
+  moveMenuToCell: (draggedMenu: MenuItem, targetX: number, targetY: number) => void;
 }
 
+/**
+ * 각 셀(GridCell)은 useDrop 훅을 통해 drop을 처리
+ * 셀 내부에는 MenuButton(드래그 가능한 버튼)을 렌더링
+ */
 export default function GridCell({
   row,
   col,
   items,
   onCellClick,
   onMenuClick,
+  moveMenuToCell,
 }: Props) {
   // FULL 사이즈 메뉴가 있는지 확인
   const fullItem = items.find((m) => m.menuStyle.sizeType === "FULL");
-  // HALF 사이즈 메뉴 목록
+  // HALF 사이즈 메뉴
   const halfItems = items.filter((m) => m.menuStyle.sizeType === "HALF");
 
-  // 부모 그리드 셀을 꽉 채우도록 하는 공통 스타일
-  const baseStyle = "w-full h-full overflow-hidden";
+  /**
+   * 🚩 핵심: min-h-0 추가하여 부모 높이가 줄어들 때 내부도 함께 줄어듦
+   * flex-col + flex-1 구조로 HALF 2개가 세로로 균등 분할 가능
+   */
+  const baseStyle =
+    "w-full h-full flex flex-col min-h-0 overflow-hidden border border-gray-300";
 
-  // 1) 셀이 완전히 비었으면 -> + 버튼 (부모 영역을 꽉 채움)
+  // drop 영역 레퍼런스
+  const dropAreaRef = useRef<HTMLDivElement>(null);
+
+  const [{ isOver }, drop] = useDrop<
+    { type: "MENU"; menu: MenuItem },
+    void,
+    { isOver: boolean }
+  >({
+    accept: "MENU",
+    drop: (item) => {
+      moveMenuToCell(item.menu, col, row);
+    },
+    collect: (monitor) => ({
+      isOver: !!monitor.isOver(),
+    }),
+  });
+
+  drop(dropAreaRef);
+
+  // 1) 셀이 완전히 비었으면 -> + 버튼
   if (items.length === 0) {
     return (
-      <button
-        onClick={() => onCellClick(col, row)}
-        className={`${baseStyle} border border-gray-400 bg-gray-300 flex items-center justify-center`}
+      <div
+        ref={dropAreaRef}
+        className={`${baseStyle} bg-gray-200 flex items-center justify-center ${
+          isOver ? "bg-green-100" : ""
+        }`}
       >
-        <Plus className="w-6 h-6 opacity-20" />
-      </button>
-    );
-  }
-
-  // 2) FULL 메뉴가 있으면 단일 버튼으로 표시
-  if (fullItem) {
-    return (
-      <button
-        onClick={() => onMenuClick(fullItem)}
-        className={`${baseStyle} font-bold flex items-center justify-center`}
-        style={{ backgroundColor: fullItem.menuStyle.colorCode || "#F5F5F5" }}
-      >
-        {fullItem.menuName}
-      </button>
-    );
-  }
-
-  // 3) HALF 메뉴가 있으면, 셀을 위아래로 분할하여 최대 2개 표시
-  if (halfItems.length > 0) {
-    return (
-      <div className={`${baseStyle} flex flex-col`}>
-        {halfItems.map((menu) => (
-          <button
-            key={menu.menuId}
-            onClick={() => onMenuClick(menu)}
-            className="flex-1 border-b last:border-b-0 flex items-center justify-center font-bold"
-            style={{
-              borderColor: "#ccc",
-              backgroundColor: menu.menuStyle.colorCode || "#F5F5F5",
-            }}
-          >
-            {menu.menuName}
-          </button>
-        ))}
-        {/* HALF 메뉴가 1개일 경우 나머지 영역에 + 버튼 */}
-        {halfItems.length === 1 && (
-          <button
-            onClick={() => onCellClick(col, row)}
-            className="flex-1 flex items-center border border-gray-400 justify-center bg-gray-300"
-          >
-            <Plus className="w-4 h-4 opacity-20" />
-          </button>
-        )}
+        <button
+          onClick={() => onCellClick(col, row)}
+          className="flex items-center justify-center"
+        >
+          <Plus className="w-6 h-6 opacity-30" />
+        </button>
       </div>
     );
   }
 
-  return null;
+  // 2) FULL 메뉴가 있으면 단일 버튼
+  if (fullItem) {
+    return (
+      <div
+        ref={dropAreaRef}
+        className={`${baseStyle} ${
+          isOver ? "bg-green-100" : "bg-white"
+        }`}
+      >
+        <MenuButton menu={fullItem} onMenuClick={onMenuClick} />
+      </div>
+    );
+  }
+
+  // 3) HALF 메뉴가 있으면 최대 2개
+  return (
+    <div
+      ref={dropAreaRef}
+      className={`${baseStyle} ${isOver ? "bg-green-100" : "bg-white"}`}
+    >
+      {halfItems.map((menu, idx) => (
+        <MenuButton key={menu.menuId} menu={menu} onMenuClick={onMenuClick} />
+      ))}
+      {/* HALF 메뉴가 1개면 -> 나머지 공간에 + 버튼 */}
+      {halfItems.length === 1 && (
+        <button
+          onClick={() => onCellClick(col, row)}
+          className="flex-1 flex items-center justify-center bg-gray-200"
+          // style={{ minHeight: "50px" }}
+        >
+          <Plus className="w-4 h-4 opacity-30" />
+        </button>
+      )}
+    </div>
+  );
 }
