@@ -38,14 +38,14 @@ export default function GridCell({
   const halfItems = items.filter((m) => m.menuStyle.sizeType === "HALF");
 
   // 부모 그리드 셀을 꽉 채우도록 하는 공통 스타일
-  const baseStyle = "w-full h-full rounded-md overflow-hidden";
+  const baseStyle = "w-full h-full overflow-hidden";
 
   // 1) 셀이 완전히 비었으면 -> + 버튼 (부모 영역을 꽉 채움)
   if (items.length === 0) {
     return (
       <button
         onClick={() => onCellClick(col, row)}
-        className={`${baseStyle} bg-gray-300 flex items-center justify-center`}
+        className={`${baseStyle} border border-gray-400 bg-gray-300 flex items-center justify-center`}
       >
         <Plus className="w-6 h-6" />
       </button>
