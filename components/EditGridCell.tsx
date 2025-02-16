@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { useDrop } from "react-dnd";
 import MenuButton from "./EditMenuButton";
 
-type MenuItem = {
+type Menu = {
   menuId: number;
   menuName: string;
   price: number;
@@ -22,10 +22,10 @@ type MenuItem = {
 interface Props {
   row: number;
   col: number;
-  items: MenuItem[];
+  items: Menu[];
   onCellClick: (x: number, y: number) => void;
-  onMenuClick: (menu: MenuItem) => void;
-  moveMenuToCell: (draggedMenu: MenuItem, targetX: number, targetY: number) => void;
+  onMenuClick: (menu: Menu) => void;
+  moveMenuToCell: (draggedMenu: Menu, targetX: number, targetY: number) => void;
 }
 
 /**
@@ -56,7 +56,7 @@ export default function GridCell({
   const dropAreaRef = useRef<HTMLDivElement>(null);
 
   const [{ isOver }, drop] = useDrop<
-    { type: "MENU"; menu: MenuItem },
+    { type: "MENU"; menu: Menu },
     void,
     { isOver: boolean }
   >({

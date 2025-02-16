@@ -12,6 +12,7 @@ type MenuStyle = {
 
 export interface Menu {
   menuId: number;
+  uiId:number;
   categoryId: number;
   menuName: string;
   discountRate: number;
@@ -42,12 +43,13 @@ interface PosState {
   storeId: number | null;
   tableName: string | null;
 
-  // ✅ 카테고리 목록 & 캐싱
+  // 카테고리 목록 & 캐싱
   categories: Category[];
   menuCache: Record<number, Menu[]>; // <카테고리ID, 메뉴목록> 캐싱
   currentMenus: Menu[]; // 화면에 표시되는 메뉴
 
   selectedItems: SelectedItem[];
+  
   isLoading: boolean;
 
   setStoreId: (id: number | null) => void;
@@ -55,10 +57,19 @@ interface PosState {
 
   fetchCategories: (storeId: number) => Promise<void>;
 
-  // ✅ menuCache & currentMenus
-  fetchMenusByCategory: (categoryId: number) => Promise<void>;
+  /**
+   * fetchMenusByCategory:
+   * forceReload 옵션이 true이면 캐시 무시하고 서버 재요청,
+   * 기본값은 false.
+   */
+  fetchMenusByCategory: (categoryId: number, forceReload?: boolean) => Promise<void>;
+
+  // 캐시 무효화 액션
+  invalidateMenuCache: (categoryId: number) => void;
 
   addItem: (menuName: string, price: number) => void;
+  
+  removeItem: (menuName: string) => void;
 
   resetData: () => void;
 }
@@ -85,32 +96,22 @@ export const usePosStore = create<PosState>((set, get) => ({
     } catch (err) {
       console.error("fetchCategories error:", err);
       set({
-        categories: [
-          { categoryId: -1, categoryName: "unconnected" },
-        ],
+        categories: [{ categoryId: -1, categoryName: "unconnected" }],
         isLoading: false,
       });
     }
   },
 
-  // --------------------------------------
-  // 1) 카테고리별 메뉴를 캐싱하여 깜박임 최소화
-  // --------------------------------------
-  fetchMenusByCategory: async (categoryId: number) => {
+  // 메뉴 캐싱 및 강제 새로고침 옵션 추가
+  fetchMenusByCategory: async (categoryId: number, forceReload: boolean = false) => {
     set({ isLoading: true });
-
     const { menuCache } = get();
-    const cached = menuCache[categoryId];
-    if (cached) {
-      // ✅ 이미 캐시에 있으면 즉시 currentMenus 업데이트
-      set({ currentMenus: cached, isLoading: false });
+    if (!forceReload && menuCache[categoryId]) {
+      set({ currentMenus: menuCache[categoryId], isLoading: false });
       return;
     }
-
     try {
-      // 🚀 캐시에 없으면 서버에서 새로 가져옴
       const { data } = await axiosInstance.get(`/api/menus/all/${categoryId}`);
-      // data: Menu[]
       set((state) => ({
         menuCache: { ...state.menuCache, [categoryId]: data },
         currentMenus: data,
@@ -118,11 +119,11 @@ export const usePosStore = create<PosState>((set, get) => ({
       }));
     } catch (err) {
       console.error("fetchMenusByCategory error:", err);
-      // 실패 시
       set({
         currentMenus: [
           {
             menuId: -1,
+            uiId:0,
             categoryId: -1,
             menuName: "unconnected",
             discountRate: 0,
@@ -142,23 +143,30 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
 
+  // 캐시 무효화 액션 (특정 카테고리의 캐시 제거)
+  invalidateMenuCache: (categoryId: number) => {
+    set((state) => {
+      const newCache = { ...state.menuCache };
+      delete newCache[categoryId];
+      return { menuCache: newCache };
+    });
+  },
+
   addItem: (menuName: string, price: number) => {
     const { selectedItems } = get();
     const idx = selectedItems.findIndex((it) => it.menuName === menuName);
     if (idx >= 0) {
-      // 이미 있으면 수량 +1
       const updated = [...selectedItems];
       updated[idx].quantity += 1;
       set({ selectedItems: updated });
     } else {
-      // 새로 추가
-      set({
-        selectedItems: [
-          ...selectedItems,
-          { menuName, price, quantity: 1 },
-        ],
-      });
+      set({ selectedItems: [...selectedItems, { menuName, price, quantity: 1 }] });
     }
+  },
+
+  removeItem: (menuName: string) => {
+    const { selectedItems } = get();
+    set({ selectedItems: selectedItems.filter(item => item.menuName !== menuName) });
   },
 
   resetData: () => {
