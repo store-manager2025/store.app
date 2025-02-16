@@ -2,11 +2,10 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Settings } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 
 import { usePosStore } from "../../store/usePosStore";
 
-// 재활용 컴포넌트
+// 컴포넌트
 import CategoryButton from "../../components/CategoryButton";
 import MenuButton from "../../components/PosMenuButton";
 import SelectedMenuList from "../../components/SelectedMenuList";
@@ -20,7 +19,7 @@ export default function PosPage() {
     storeId,
     tableName,
     categories,
-    menus,
+    currentMenus, // ✅ 현재 카테고리 메뉴
     isLoading,
     setStoreId,
     setTableName,
@@ -34,9 +33,9 @@ export default function PosPage() {
     null
   );
 
-  // ---------------------------
-  // 1) 초기에 storeId 로딩
-  // ---------------------------
+  // -----------------------------------------------------
+  // 1) 초기에 storeId 로딩 → 카테고리 불러오기 → 첫 번째 카테고리 선택
+  // -----------------------------------------------------
   useEffect(() => {
     const savedStoreId = localStorage.getItem("currentStoreId");
     if (savedStoreId) {
@@ -44,35 +43,35 @@ export default function PosPage() {
     } else {
       setStoreId(null);
     }
-    setTableName("Table T1"); // 예시로 설정
+    setTableName("Table T1"); // 예시
   }, [setStoreId, setTableName]);
 
-  // ---------------------------
-  // 2) storeId 바뀔 때 카테고리 불러오기
-  // ---------------------------
   useEffect(() => {
     if (storeId) {
       fetchCategories(storeId).then(() => {
-        // fetchCategories가 끝난 후, 첫 번째 카테고리를 자동 선택
         if (categories && categories.length > 0) {
+          // 첫번째 카테고리
           setSelectedCategoryId(categories[0].categoryId);
         }
       });
     }
   }, [storeId]);
 
-  // ---------------------------
-  // 3) selectedCategoryId 바뀔 때 메뉴 불러오기
-  // ---------------------------
+  // -----------------------------------------------------
+  // 2) selectedCategory 바뀔 때 -> 해당 메뉴 fetch (캐싱)
+  // -----------------------------------------------------
   useEffect(() => {
     if (selectedCategoryId && selectedCategoryId !== -1) {
+      // ✅ 클릭 시에도 이전 메뉴 그대로 두고,
+      //    fetchMenusByCategory 실행 → 캐시에 있으면 즉시 업데이트,
+      //    없으면 서버 호출 → 완료 후 한 번에 currentMenus 업데이트
       fetchMenusByCategory(selectedCategoryId);
     }
   }, [selectedCategoryId]);
 
-  // ---------------------------
-  // UI 이벤트
-  // ---------------------------
+  // -----------------------------------------------------
+  // 이벤트 핸들러
+  // -----------------------------------------------------
   const handleCategoryClick = (catId: number) => {
     setSelectedCategoryId(catId);
   };
@@ -86,11 +85,7 @@ export default function PosPage() {
   };
 
   /**
-   * (A) 메뉴 그리드를 렌더링하는 함수
-   *  - 5열 × 4행
-   *  - `menuStyle.sizeType`이 FULL이면 셀 전체에 1개만 배치
-   *  - HALF면 같은 셀에 최대 2개(위/아래)
-   *  - `menuStyle.colorCode`로 배경색 표시
+   * (A) 5×4 그리드에서, menuStyle.positionX/Y로 위치 지정 + FULL/HALF 구분
    */
   const renderGrid = () => {
     const rows = 4;
@@ -100,19 +95,18 @@ export default function PosPage() {
       <div className="grid grid-cols-5 grid-rows-4 flex-1">
         {Array.from({ length: rows }).map((_, rowIdx) =>
           Array.from({ length: cols }).map((_, colIdx) => {
-            // 해당 (colIdx, rowIdx)에 맞는 메뉴들만 필터
-            const cellMenus = menus.filter(
+            // 해당 (colIdx, rowIdx)에 맞는 메뉴만 필터
+            const cellMenus = currentMenus.filter(
               (m) =>
-                m.menuStyle?.positionX === colIdx &&
-                m.menuStyle?.positionY === rowIdx
+                m.menuStyle.positionX === colIdx &&
+                m.menuStyle.positionY === rowIdx
             );
 
             if (cellMenus.length === 0) {
-              // 메뉴가 없으면 빈 칸으로 처리
               return <div key={`${rowIdx}-${colIdx}`} className="bg-white" />;
             }
 
-            // FULL 메뉴가 있으면 셀 전체에 1개만 배치
+            // FULL
             const fullItem = cellMenus.find(
               (m) => m.menuStyle.sizeType === "FULL"
             );
@@ -135,7 +129,7 @@ export default function PosPage() {
               );
             }
 
-            // HALF 메뉴인 경우, 최대 2개 (위/아래)
+            // HALF -> 최대 2개
             return (
               <div
                 key={`${rowIdx}-${colIdx}`}
@@ -151,11 +145,12 @@ export default function PosPage() {
                       menuName={item.menuName}
                       price={item.price}
                       color={item.menuStyle.colorCode}
-                      onClick={() => handleMenuClick(item.menuName, item.price)}
+                      onClick={() =>
+                        handleMenuClick(item.menuName, item.price)
+                      }
                     />
                   </div>
                 ))}
-                {/* HALF 메뉴가 1개이면 아래쪽 칸은 + 아이콘으로 표시 */}
                 {cellMenus.length === 1 && (
                   <div className="flex-1 flex items-center justify-center bg-gray-200">
                     <span className="text-2xl text-gray-400">+</span>
@@ -171,36 +166,24 @@ export default function PosPage() {
 
   return (
     <div className="flex flex-col h-screen">
-      {/* 헤더 영역 - 상대/절대 포지션 */}
+      {/* 헤더 */}
       <div className="relative w-full h-10 border-b-2 border-gray-300 bg-white">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={selectedCategoryId} // 카테고리 변경 시 새로운 키 부여
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.1 }}
-          >
-            {/* (1) 카테고리 영역: 왼쪽 */}
-            <div className="absolute bottom-[-4px] h-full flex items-center">
-              {!isLoading &&
-                categories.map((cat) => (
-                  <CategoryButton
-                    key={cat.categoryId}
-                    categoryName={cat.categoryName}
-                    style={{
-                      backgroundColor:
-                        cat.categoryStyle?.colorCode || "#f0f0f0",
-                    }}
-                    selected={cat.categoryId === selectedCategoryId}
-                    onClick={() => handleCategoryClick(cat.categoryId)}
-                  />
-                ))}
-            </div>
-          </motion.div>
-        </AnimatePresence>
+        {/* 왼쪽: 카테고리 버튼들 */}
+        <div className="absolute bottom-[-4px] h-full flex items-center gap-2">
+          {categories.map((cat) => (
+            <CategoryButton
+              key={cat.categoryId}
+              categoryName={cat.categoryName}
+              style={{
+                backgroundColor: cat.categoryStyle?.colorCode || "#f0f0f0",
+              }}
+              selected={cat.categoryId === selectedCategoryId}
+              onClick={() => handleCategoryClick(cat.categoryId)}
+            />
+          ))}
+        </div>
 
-        {/* (2) 테이블 버튼: 중앙 */}
+        {/* 중앙: 테이블 버튼 */}
         <div className="absolute font-mono top-0 left-1/2 -translate-x-1/2 h-full flex items-center">
           <button
             onClick={handleTableClick}
@@ -210,7 +193,7 @@ export default function PosPage() {
           </button>
         </div>
 
-        {/* (3) 설정 아이콘: 오른쪽 */}
+        {/* 오른쪽: 설정 아이콘 */}
         <div className="absolute right-2 top-0 h-full flex items-center">
           <button
             onClick={() => router.push("/setting")}
@@ -221,28 +204,23 @@ export default function PosPage() {
         </div>
       </div>
 
-      {/* 메인 컨텐츠 영역 */}
+      {/* 메인 영역 */}
       <div className="flex flex-1 font-mono overflow-hidden">
         {/* 왼쪽: 메뉴 그리드 (70%) */}
         <div className="flex flex-col w-[70%] overflow-auto">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={selectedCategoryId} // 카테고리 변경 시 새로운 키 부여
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              {menus && menus.length > 0 && menus[0].menuId !== -1 ? (
-                renderGrid()
-              ) : (
-                <div className="text-center text-gray-400"></div>
-              )}
-            </motion.div>
-          </AnimatePresence>
+          {/* 로딩 중에도 '이전 카테고리 메뉴' 유지 → 깜박임 최소화 */}
+          {isLoading && (
+            <div className="text-center text-gray-400 py-2">Loading...</div>
+          )}
+          {/* currentMenus가 -1이면 unconnected, 아니면 그리드 */}
+          {currentMenus.length > 0 && currentMenus[0].menuId !== -1 ? (
+            renderGrid()
+          ) : (
+            <div className="text-center text-gray-400" />
+          )}
         </div>
 
-        {/* 오른쪽: 선택된 메뉴 목록 (30%) */}
+        {/* 오른쪽: 선택된 메뉴 (30%) */}
         <div className="flex flex-col w-[30%] border-l-2 border-gray-300 overflow-hidden">
           <SelectedMenuList />
         </div>

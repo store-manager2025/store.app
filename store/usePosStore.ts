@@ -2,15 +2,28 @@
 import { create } from "zustand";
 import axiosInstance from "@/lib/axiosInstance";
 
-// -----------------------------
-// (1) 데이터 타입
-// -----------------------------
+type MenuStyle = {
+  uiId: number;
+  positionX: number;
+  positionY: number;
+  colorCode: string;
+  sizeType: "FULL" | "HALF";
+};
 
-// 카테고리 구조
-interface Category {
+export interface Menu {
+  menuId: number;
+  categoryId: number;
+  menuName: string;
+  discountRate: number;
+  price: number;
+  createdAt: string;
+  menuStyle: MenuStyle;
+}
+
+export interface Category {
   categoryId: number;
   categoryName: string;
-  categoryStyle: {
+  categoryStyle?: {
     uiId: number;
     positionX: number | null;
     positionY: number | null;
@@ -19,47 +32,30 @@ interface Category {
   };
 }
 
-// 메뉴 구조
-interface Menu {
-  menuId: number;
-  categoryId: number;
-  menuName: string;
-  discountRate: number;
-  price: number;
-  createdAt: string;
-  menuStyle: {
-    uiId: number;
-    positionX: number;
-    positionY: number;
-    colorCode: string;
-    sizeType: "FULL" | "HALF";
-  };
-}
-
-// 선택된 메뉴 항목 구조(오른쪽 리스트)
 interface SelectedItem {
   menuName: string;
   price: number;
   quantity: number;
 }
 
-// -----------------------------
-// (2) Zustand 상태 및 액션 정의
-// -----------------------------
 interface PosState {
-  // 상태
-  storeId: number | null;       // 현재 매장 ID
-  tableName: string | null;     // 테이블명 (예: "Table T1")
-  categories: Category[];       // 서버에서 불러온 카테고리 목록
-  menus: Menu[];                // 서버에서 불러온 "현재 선택된 카테고리"의 메뉴 목록
-  selectedItems: SelectedItem[]; 
+  storeId: number | null;
+  tableName: string | null;
+
+  // ✅ 카테고리 목록 & 캐싱
+  categories: Category[];
+  menuCache: Record<number, Menu[]>; // <카테고리ID, 메뉴목록> 캐싱
+  currentMenus: Menu[]; // 화면에 표시되는 메뉴
+
+  selectedItems: SelectedItem[];
   isLoading: boolean;
 
-  // 액션
   setStoreId: (id: number | null) => void;
   setTableName: (name: string | null) => void;
 
   fetchCategories: (storeId: number) => Promise<void>;
+
+  // ✅ menuCache & currentMenus
   fetchMenusByCategory: (categoryId: number) => Promise<void>;
 
   addItem: (menuName: string, price: number) => void;
@@ -67,112 +63,110 @@ interface PosState {
   resetData: () => void;
 }
 
-// -----------------------------
-// (3) create로 스토어 생성
-// -----------------------------
 export const usePosStore = create<PosState>((set, get) => ({
-  // 초기값
   storeId: null,
   tableName: null,
+
   categories: [],
-  menus: [],
+  menuCache: {},
+  currentMenus: [],
+
   selectedItems: [],
   isLoading: false,
 
-  // Setter
   setStoreId: (id) => set({ storeId: id }),
   setTableName: (name) => set({ tableName: name }),
 
-  // ---------------------------
-  // 1) 카테고리 목록 불러오기
-  // ---------------------------
   fetchCategories: async (storeId: number) => {
     set({ isLoading: true });
-
     try {
-      // 실제 서버 호출 예시 (직접 외부 주소 호출 or Next.js route.tsx 사용)
-      const res = await axiosInstance.get(`/api/categories/all/${storeId}`);
-      const data: Category[] = res.data; // 서버 응답
-
+      const { data } = await axiosInstance.get(`/api/categories/all/${storeId}`);
+      set({ categories: data, isLoading: false });
+    } catch (err) {
+      console.error("fetchCategories error:", err);
       set({
-        categories: data,
-        isLoading: false,
-      });
-    } catch (error) {
-      console.error("fetchCategories error:", error);
-      // 실패 시 임시로 unconnected 세팅
-      set({
+        categories: [
+          { categoryId: -1, categoryName: "unconnected" },
+        ],
         isLoading: false,
       });
     }
   },
 
-  // ---------------------------
-  // 2) 현재 카테고리의 메뉴 목록 불러오기
-  // ---------------------------
+  // --------------------------------------
+  // 1) 카테고리별 메뉴를 캐싱하여 깜박임 최소화
+  // --------------------------------------
   fetchMenusByCategory: async (categoryId: number) => {
     set({ isLoading: true });
 
-    try {
-      // 실제 서버 호출 예시
-      const res = await axiosInstance.get(`/api/menus/all/${categoryId}`);
-      const data: Menu[] = res.data;
+    const { menuCache } = get();
+    const cached = menuCache[categoryId];
+    if (cached) {
+      // ✅ 이미 캐시에 있으면 즉시 currentMenus 업데이트
+      set({ currentMenus: cached, isLoading: false });
+      return;
+    }
 
-      set({
-        menus: data,
+    try {
+      // 🚀 캐시에 없으면 서버에서 새로 가져옴
+      const { data } = await axiosInstance.get(`/api/menus/all/${categoryId}`);
+      // data: Menu[]
+      set((state) => ({
+        menuCache: { ...state.menuCache, [categoryId]: data },
+        currentMenus: data,
         isLoading: false,
-      });
-    } catch (error) {
-      console.error("fetchMenusByCategory error:", error);
-      // 실패 시 unconnected 메뉴
+      }));
+    } catch (err) {
+      console.error("fetchMenusByCategory error:", err);
+      // 실패 시
       set({
-        // menus: [
-        //   {
-        //     menuId: -1,
-        //     menuName: "unconnected",
-        //     price: 0,
-        //   },
-        // ],
+        currentMenus: [
+          {
+            menuId: -1,
+            categoryId: -1,
+            menuName: "unconnected",
+            discountRate: 0,
+            price: 0,
+            createdAt: "",
+            menuStyle: {
+              uiId: 0,
+              positionX: 0,
+              positionY: 0,
+              colorCode: "#aaa",
+              sizeType: "FULL",
+            },
+          },
+        ],
         isLoading: false,
       });
     }
   },
 
-  // ---------------------------
-  // 3) 오른쪽 리스트에 메뉴 추가
-  // ---------------------------
   addItem: (menuName: string, price: number) => {
     const { selectedItems } = get();
-
-    const existingIndex = selectedItems.findIndex((item) => item.menuName === menuName);
-    if (existingIndex !== -1) {
-      // 이미 선택된 메뉴 → 수량 +1
+    const idx = selectedItems.findIndex((it) => it.menuName === menuName);
+    if (idx >= 0) {
+      // 이미 있으면 수량 +1
       const updated = [...selectedItems];
-      updated[existingIndex].quantity += 1;
+      updated[idx].quantity += 1;
       set({ selectedItems: updated });
     } else {
       // 새로 추가
       set({
         selectedItems: [
           ...selectedItems,
-          {
-            menuName,
-            price,
-            quantity: 1,
-          },
+          { menuName, price, quantity: 1 },
         ],
       });
     }
   },
 
-  // ---------------------------
-  // 4) 화면 초기화/로그아웃 시 데이터 리셋
-  // ---------------------------
   resetData: () => {
     set({
       tableName: null,
       categories: [],
-      menus: [],
+      menuCache: {},
+      currentMenus: [],
       selectedItems: [],
       isLoading: false,
     });
