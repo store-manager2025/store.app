@@ -28,7 +28,7 @@ export default function MenuButton({
       onClick={onClick}
       className={`${baseStyle} text-black font-medium font-mono
                   flex items-center justify-center
-                  hover:opacity-90 transition`}
+                  hover:opacity-50 hover:shadow-lg transition-all duration-200`}
       style={{ backgroundColor: color }}
     >
       <div className="text-center">
