@@ -168,8 +168,7 @@ export default function PosPage() {
                   </div>
                 ))}
                 {cellMenus.length === 1 && (
-                  <div className="flex-1 flex items-center justify-center bg-gray-200">
-                    <span className="text-2xl text-gray-400">+</span>
+                  <div className="flex-1 flex items-center justify-center bg-white">
                   </div>
                 )}
               </div>
