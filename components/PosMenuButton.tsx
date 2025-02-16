@@ -20,14 +20,14 @@ export default function MenuButton({
   // sizeType에 따라 width/height 등 다르게 처리 가능
   const baseStyle =
     sizeType === "FULL"
-      ? "w-full h-full" // 가로세로 모두 차지 (그리드 셀 크기에 따라)
+      ? "w-full h-full " // 가로세로 모두 차지 (그리드 셀 크기에 따라)
       : "w-full h-[50%]"; // 예시: 반만 차지
 
   return (
     <button
       onClick={onClick}
       className={`${baseStyle} text-black font-medium font-mono
-                  flex items-center justify-center border border-gray-200
+                  flex items-center justify-center
                   hover:opacity-90 transition`}
       style={{ backgroundColor: color }}
     >

@@ -110,7 +110,7 @@ export default function EditCategoryPage() {
       sizeType: "",
     };
   
-    console.log("📌 보내는 데이터:", requestData); // 백엔드로 보내는 데이터를 로그로 확인
+    console.log("보내는 데이터:", requestData); // 백엔드로 보내는 데이터를 로그로 확인
   
     try {
       const response = await axiosInstance.patch("/api/categories", requestData);
@@ -127,7 +127,6 @@ export default function EditCategoryPage() {
   // 카테고리 삭제
   const handleDeleteCategory = async (id: number) => {
     if (!token) return;
-    if (!confirm("정말 삭제하시겠습니까?")) return;
     try {
       await axiosInstance.delete(`/api/categories/${id}`);
       alert("카테고리가 삭제되었습니다.");
@@ -137,11 +136,6 @@ export default function EditCategoryPage() {
       console.error(error.message);
       alert(error.message);
     }
-  };
-
-  // “Save” 버튼 클릭 시 동작 (필요에 맞춰 수정)
-  const handleSave = () => {
-    alert("카테고리 설정을 저장했습니다.");
   };
 
   return (
