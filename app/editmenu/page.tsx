@@ -7,7 +7,7 @@ import Spinner from "../../components/Spinner";
 import CategorySidebar from "../../components/CategorySidebar";
 import AddItemModal from "../../components/AddItemModal";
 import ModifyItemModal from "../../components/ModifyItemModal";
-import GridCell from "../../components/GridCell";
+import GridCell from "../../components/EditGridCell";
 import { ChevronLeft } from "lucide-react";
 
 // react-dnd 관련

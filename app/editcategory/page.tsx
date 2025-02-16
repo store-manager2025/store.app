@@ -127,7 +127,6 @@ export default function EditCategoryPage() {
   // 카테고리 삭제
   const handleDeleteCategory = async (id: number) => {
     if (!token) return;
-    if (!confirm("정말 삭제하시겠습니까?")) return;
     try {
       await axiosInstance.delete(`/api/categories/${id}`);
       alert("카테고리가 삭제되었습니다.");
