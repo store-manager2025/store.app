@@ -46,16 +46,32 @@ export default function PosPage() {
     setTableName("Table T1"); // 예시
   }, [setStoreId, setTableName]);
 
-  useEffect(() => {
+   // 카테고리 불러오기
+   useEffect(() => {
     if (storeId) {
-      fetchCategories(storeId).then(() => {
-        if (categories && categories.length > 0) {
-          // 첫번째 카테고리
-          setSelectedCategoryId(categories[0].categoryId);
-        }
-      });
+      fetchCategories(storeId);
     }
   }, [storeId]);
+
+  // useEffect(() => {
+  //   if (storeId) {
+  //     fetchCategories(storeId).then(() => {
+  //       if (categories && categories.length > 0) {
+  //         // 첫번째 카테고리
+  //         setSelectedCategoryId(categories[0].categoryId);
+  //       }
+  //     });
+  //   }
+  // }, [storeId]);
+
+  // -----------------------------------------------------
+  // 1-2) categories가 업데이트되면 첫 번째 카테고리 선택 (초기 설정)
+  // -----------------------------------------------------
+  useEffect(() => {
+    if (categories && categories.length > 0 && selectedCategoryId === null) {
+      setSelectedCategoryId(categories[0].categoryId);
+    }
+  }, [categories, selectedCategoryId]);
 
   // -----------------------------------------------------
   // 2) selectedCategory 바뀔 때 -> 해당 메뉴 fetch (캐싱)
@@ -169,7 +185,7 @@ export default function PosPage() {
       {/* 헤더 */}
       <div className="relative w-full h-10 border-b-2 border-gray-300 bg-white">
         {/* 왼쪽: 카테고리 버튼들 */}
-        <div className="absolute bottom-[-4px] h-full flex items-center gap-2">
+        <div className="absolute bottom-[-4px] h-full flex items-center">
           {categories.map((cat) => (
             <CategoryButton
               key={cat.categoryId}
@@ -209,9 +225,9 @@ export default function PosPage() {
         {/* 왼쪽: 메뉴 그리드 (70%) */}
         <div className="flex flex-col w-[70%] overflow-auto">
           {/* 로딩 중에도 '이전 카테고리 메뉴' 유지 → 깜박임 최소화 */}
-          {isLoading && (
+          {/* {isLoading && (
             <div className="text-center text-gray-400 py-2">Loading...</div>
-          )}
+          )} */}
           {/* currentMenus가 -1이면 unconnected, 아니면 그리드 */}
           {currentMenus.length > 0 && currentMenus[0].menuId !== -1 ? (
             renderGrid()
