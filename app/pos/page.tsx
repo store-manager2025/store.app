@@ -9,6 +9,7 @@ import { usePosStore } from "../../store/usePosStore";
 import CategoryButton from "../../components/CategoryButton";
 import MenuButton from "../../components/PosMenuButton";
 import SelectedMenuList from "../../components/SelectedMenuList";
+import PlaceModal from "../../components/PlaceModal"; 
 
 /** PosPage 화면 */
 export default function PosPage() {
@@ -33,6 +34,9 @@ export default function PosPage() {
     null
   );
 
+  // ✅ 모달 표시 상태
+  const [showPlaceModal, setShowPlaceModal] = useState(false);
+
   // -----------------------------------------------------
   // 1) 초기에 storeId 로딩 → 카테고리 불러오기 → 첫 번째 카테고리 선택
   // -----------------------------------------------------
@@ -43,7 +47,8 @@ export default function PosPage() {
     } else {
       setStoreId(null);
     }
-    setTableName("Table T1"); // 예시
+    // 기존 예시: setTableName("Table T1") -> 삭제 or 주석
+    setTableName(""); 
   }, [setStoreId, setTableName]);
 
    // 카테고리 불러오기
@@ -52,17 +57,6 @@ export default function PosPage() {
       fetchCategories(storeId);
     }
   }, [storeId]);
-
-  // useEffect(() => {
-  //   if (storeId) {
-  //     fetchCategories(storeId).then(() => {
-  //       if (categories && categories.length > 0) {
-  //         // 첫번째 카테고리
-  //         setSelectedCategoryId(categories[0].categoryId);
-  //       }
-  //     });
-  //   }
-  // }, [storeId]);
 
   // -----------------------------------------------------
   // 1-2) categories가 업데이트되면 첫 번째 카테고리 선택 (초기 설정)
@@ -96,8 +90,20 @@ export default function PosPage() {
     addItem(menuName, price);
   };
 
+  // 테이블 버튼 클릭 -> 모달 오픈
   const handleTableClick = () => {
-    router.push("/table");
+    setShowPlaceModal(true);
+  };
+
+  // 모달 닫기
+  const handleCloseModal = () => {
+    setShowPlaceModal(false);
+  };
+
+  // 테이블(좌석) 선택 시 tableName 세팅
+  const handlePlaceSelected = (placeName: string) => {
+    setTableName(placeName);
+    setShowPlaceModal(false);
   };
 
   /**
@@ -198,13 +204,13 @@ export default function PosPage() {
           ))}
         </div>
 
-        {/* 중앙: 테이블 버튼 */}
+        {/* 중앙: 테이블명 (버튼 -> 모달 오픈) */}
         <div className="absolute font-mono top-0 left-1/2 -translate-x-1/2 h-full flex items-center">
           <button
             onClick={handleTableClick}
             className="py-2 px-6 text-sm font-medium hover:bg-gray-100 transition"
           >
-            {tableName || "unconnected"}
+            {tableName || "Select Table"}
           </button>
         </div>
 
@@ -239,6 +245,11 @@ export default function PosPage() {
         <div className="flex flex-col w-[30%] border-l-2 border-gray-300 overflow-hidden">
           <SelectedMenuList />
         </div>
+
+        {/* (모달) PlaceModal */}
+      {showPlaceModal && (
+        <PlaceModal onClose={handleCloseModal} onPlaceSelected={handlePlaceSelected} />
+      )}
       </div>
     </div>
   );
