@@ -45,6 +45,13 @@ function SwipeableItem({ item, onDelete }: SwipeableItemProps) {
     setDragging(false);
   };
 
+  /** 삭제 버튼 클릭 시 상태 초기화 후 삭제 실행 */
+  const handleDelete = () => {
+    setIsSwiped(false);
+    setTranslateX(0);
+    onDelete();
+  };
+
   return (
     <div className="relative w-full border-b overflow-hidden">
       {/* 삭제 버튼 */}
@@ -53,7 +60,7 @@ function SwipeableItem({ item, onDelete }: SwipeableItemProps) {
     bg-red-500 text-white transition-all border-l border-gray-300 border-b ${
       isSwiped ? "translate-x-0" : "translate-x-full"
     }`}
-        onClick={onDelete}
+        onClick={handleDelete}
       >
         <Trash2 className="w-5 h-5" />
       </button>

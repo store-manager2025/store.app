@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Settings } from "lucide-react";
 
 import { usePosStore } from "../../store/usePosStore";
+import { usePlaceStore } from "@/store/usePlaceStore";
 
 // 컴포넌트
 import CategoryButton from "../../components/CategoryButton";
@@ -14,7 +15,7 @@ import PlaceModal from "../../components/PlaceModal";
 /** PosPage 화면 */
 export default function PosPage() {
   const router = useRouter();
-
+  
   // Zustand
   const {
     storeId,
@@ -56,7 +57,7 @@ export default function PosPage() {
     if (storeId) {
       fetchCategories(storeId);
     }
-  }, [storeId]);
+  }, [storeId, fetchCategories]);
 
   // -----------------------------------------------------
   // 1-2) categories가 업데이트되면 첫 번째 카테고리 선택 (초기 설정)
