@@ -119,14 +119,8 @@ export default function SelectedMenuList() {
           <span>₩ {totalPrice.toLocaleString()}</span>
         </div>
         <div className="flex space-x-2 pb-4 gap-2">
-          <button className="flex-1 py-8 bg-gray-200 hover:bg-gray-300 transition rounded-md text-sm">
-            CASH
-          </button>
-          <button className="flex-1 bg-gray-200 hover:bg-gray-300 transition py-2 rounded-md text-sm">
-            CARD
-          </button>
-          <button className="flex-1 bg-gray-200 hover:bg-gray-300 transition py-2 rounded-md text-sm">
-            MIXED
+          <button className="flex-1 py-4 bg-gray-200 hover:bg-gray-300 transition rounded-md text-sm">
+            pay
           </button>
         </div>
       </div>
