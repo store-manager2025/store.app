@@ -82,6 +82,7 @@ export default function CreatePage() {
       }
     }, 2000);
   };
+
   // --------------------------------------------
   // 3) 비밀번호(4자리) (Zustand 사용)
   // --------------------------------------------
@@ -93,7 +94,6 @@ export default function CreatePage() {
     if (pwTimerRef.current) clearTimeout(pwTimerRef.current);
     pwTimerRef.current = setTimeout(() => {
       console.log("비밀번호 자동저장:", val);
-      // Zustand의 상태가 최신으로 업데이트되었는지 보장하기 위해 getState()를 사용
       if (val.length === 4) {
         console.log("비밀번호 자동저장 후 제출:", val);
         submitPayload();
@@ -145,6 +145,11 @@ export default function CreatePage() {
               type="text"
               value={storeName}
               onChange={handleChangeName}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && storeName.trim() !== "") {
+                  setStep(2);
+                }
+              }}
               className="w-[300px] h-10 rounded-md border border-gray-300 px-3 outline-none"
               placeholder="매장 이름을 입력"
             />
@@ -158,6 +163,11 @@ export default function CreatePage() {
               type="text"
               value={storePlace}
               onChange={handleChangePlace}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && storePlace.trim() !== "") {
+                  setStep(3);
+                }
+              }}
               className="w-[300px] h-10 rounded-md border border-gray-300 px-3 outline-none mb-2"
               placeholder="직접 주소를 입력하거나 검색하기"
             />
@@ -178,6 +188,11 @@ export default function CreatePage() {
               maxLength={4}
               value={password}
               onChange={handleChangePassword}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && password.length === 4) {
+                  submitPayload();
+                }
+              }}
               className="w-[300px] h-10 rounded-md border border-gray-300 px-3 outline-none text-center"
               placeholder="4자리 숫자"
             />
