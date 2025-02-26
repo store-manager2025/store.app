@@ -107,11 +107,11 @@ export default function PosPage() {
     setShowPlaceModal(false);
   };
 
-  // 결제 페이지로 이동
+  // 결제 페이지로 이동하며 선택된 아이템 전달
   const handlePaymentClick = () => {
     const searchParams = new URLSearchParams();
-    searchParams.set('selectedItems', JSON.stringify(selectedItems));
-    router.push('/payment?' + searchParams.toString());
+    searchParams.set("selectedItems", JSON.stringify(selectedItems));
+    router.push(`/payment?${searchParams.toString()}`);
   };
 
   /**
@@ -251,13 +251,7 @@ export default function PosPage() {
 
         {/* 오른쪽: 선택된 메뉴 (30%) */}
         <div className="flex flex-col w-[30%] border-l-2 border-gray-300 overflow-hidden">
-          <SelectedMenuList />
-          <button
-            onClick={handlePaymentClick}
-            className="flex-1 py-4 bg-gray-200 hover:bg-gray-300 transition rounded-md text-sm"
-          >
-            Pay
-          </button>
+        <SelectedMenuList />
         </div>
 
         {/* (모달) PlaceModal */}

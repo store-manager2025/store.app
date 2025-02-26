@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { usePosStore } from "../store/usePosStore";
 import { Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface SwipeableItemProps {
   item: {
@@ -90,14 +91,21 @@ function SwipeableItem({ item, onDelete }: SwipeableItemProps) {
   );
 }
 
+/** 선택된 메뉴 리스트 컴포넌트 */
 export default function SelectedMenuList() {
-  const selectedItems = usePosStore((state) => state.selectedItems);
-  const removeItem = usePosStore((state) => state.removeItem);
+  const router = useRouter();
+  const { selectedItems, removeItem } = usePosStore();
 
   const totalPrice = selectedItems.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0
   );
+
+  const handlePaymentClick = () => {
+    const searchParams = new URLSearchParams();
+    searchParams.set("selectedItems", JSON.stringify(selectedItems));
+    router.push(`/payment?${searchParams.toString()}`);
+  };
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -119,7 +127,10 @@ export default function SelectedMenuList() {
           <span>₩ {totalPrice.toLocaleString()}</span>
         </div>
         <div className="flex space-x-2 pb-4 gap-2">
-          <button className="flex-1 py-4 bg-gray-200 hover:bg-gray-300 transition rounded-md text-sm">
+          <button
+            onClick={handlePaymentClick}
+            className="flex-1 py-4 bg-gray-200 hover:bg-gray-300 transition rounded-md text-sm"
+          >
             pay
           </button>
         </div>
