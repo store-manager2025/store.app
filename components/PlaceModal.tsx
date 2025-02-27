@@ -1,7 +1,7 @@
-// components/PlaceModal.tsx
 "use client";
 import React, { useEffect, useState } from "react";
 import axiosInstance from "@/lib/axiosInstance";
+import { usePosStore, SelectedItem } from "../store/usePosStore"; // SelectedItem 임포트
 
 interface Place {
   placeId?: number;
@@ -14,28 +14,24 @@ interface Place {
 
 interface PlaceModalProps {
   onClose: () => void;
-  onPlaceSelected: (placeName: string) => void;
+  onPlaceSelected: (
+    placeName: string,
+    placeId: number,
+    orderId?: number,
+    orderMenus?: SelectedItem[]
+  ) => void;
 }
 
-export default function PlaceModal({
-  onClose,
-  onPlaceSelected,
-}: PlaceModalProps) {
+export default function PlaceModal({ onClose, onPlaceSelected }: PlaceModalProps) {
   const [storeId, setStoreId] = useState<number | null>(null);
-
   const cols = 11;
   const rows = 9;
   const seatCount = cols * rows;
-
-  const [places, setPlaces] = useState<(Place | null)[]>(() =>
-    Array(seatCount).fill(null)
-  );
+  const [places, setPlaces] = useState<(Place | null)[]>(() => Array(seatCount).fill(null));
   const [isEditMode, setIsEditMode] = useState(false);
-  const [editingCell, setEditingCell] = useState<{
-    row: number;
-    col: number;
-  } | null>(null);
+  const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
   const [newPlaceName, setNewPlaceName] = useState("");
+  const { fetchUnpaidOrderByPlace } = usePosStore();
 
   useEffect(() => {
     const saved = localStorage.getItem("currentStoreId");
@@ -59,14 +55,7 @@ export default function PlaceModal({
         const { positionX, positionY, placeId, placeName, sizeType } = pl;
         if (positionX !== undefined && positionY !== undefined) {
           const uiId = positionY * cols + positionX;
-          arrayOfPlaces[uiId] = {
-            placeId,
-            placeName,
-            uiId,
-            sizeType,
-            positionX,
-            positionY,
-          };
+          arrayOfPlaces[uiId] = { placeId, placeName, uiId, sizeType, positionX, positionY };
         }
       });
       setPlaces(arrayOfPlaces);
@@ -102,36 +91,23 @@ export default function PlaceModal({
 
   const handleEmptyCellClick = (row: number, col: number) => {
     if (!isEditMode) return;
-    // 현재 선택된 셀이 이미 활성화되어 있다면, 비활성화(즉, input 창을 닫음)
     if (editingCell && editingCell.row === row && editingCell.col === col) {
-      setEditingCell(null); // 다시 클릭한 빈 칸을 비활성화
+      setEditingCell(null);
     } else {
-      setEditingCell({ row, col }); // 새로운 빈 칸을 선택하여 input 활성화
+      setEditingCell({ row, col });
     }
   };
 
   const handleConfirmNewPlace = async () => {
-    if (!storeId) return;
-    if (!editingCell) return;
-    if (!newPlaceName.trim()) {
-      console.log("테이블 명은 공백일 수 없습니다.");
-      return;
-    }
+    if (!storeId || !editingCell || !newPlaceName.trim()) return;
 
     const { row, col } = editingCell;
     const uiIndex = row * cols + col;
 
     try {
-      const body = {
-        storeId,
-        placeName: newPlaceName,
-        positionX: col,
-        positionY: row,
-        uiId: uiIndex,
-      };
+      const body = { storeId, placeName: newPlaceName, positionX: col, positionY: row, uiId: uiIndex };
       await axiosInstance.post("/api/places", body);
       console.log("좌석 생성 성공");
-
       setEditingCell(null);
       setNewPlaceName("");
       fetchPlaces(storeId);
@@ -140,16 +116,27 @@ export default function PlaceModal({
     }
   };
 
-  const handlePlaceClick = (place: Place) => {
-    if (!isEditMode) {
-      onPlaceSelected(place.placeName);
-      onClose();
+  const handlePlaceClick = async (place: Place) => {
+    if (isEditMode || !place.placeId) return;
+
+    try {
+      const { data } = await axiosInstance.get(`/api/orders/places/${place.placeId}`);
+      const unpaidOrderId = data?.orderId || null;
+      const orderMenus = data?.menuDetail.map((menu: any) => ({
+        menuName: menu.menuName,
+        price: menu.totalPrice / menu.totalCount,
+        quantity: menu.totalCount,
+        menuId: menu.menuId,
+      })) || [];
+      onPlaceSelected(place.placeName, place.placeId, unpaidOrderId, orderMenus);
+    } catch (err) {
+      console.error("미결제 주문 조회 실패:", err);
+      onPlaceSelected(place.placeName, place.placeId);
     }
   };
 
   const handleDeletePlace = async (place: Place) => {
-    if (!storeId) return;
-    if (!place.placeId) return;
+    if (!storeId || !place.placeId) return;
     try {
       await axiosInstance.delete(`/api/places/${place.placeId}`);
       console.log("좌석 삭제 완료");
@@ -167,11 +154,7 @@ export default function PlaceModal({
       return (
         <button
           onClick={() => handleEmptyCellClick(row, col)}
-          className={`w-full h-full ${
-            isEditMode
-              ? "bg-gray-300 cursor-pointer"
-              : "bg-white pointer-events-none"
-          }`}
+          className={`w-full h-full ${isEditMode ? "bg-gray-300 cursor-pointer" : "bg-white pointer-events-none"}`}
         >
           {isEditMode && <span className="text-xs text-gray-600">+</span>}
         </button>
@@ -192,16 +175,11 @@ export default function PlaceModal({
   return (
     <div
       className="fixed rounded-lg inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="relative rounded-lg w-[800px] h-[600px] bg-white shadow">
         <div className="relative rounded-t-md h-8 bg-gradient-to-b from-[#2674EC] to-[#0252CB] flex items-center px-3">
           <span className="text-white font-bold">Select Table</span>
-
           <div className="absolute rounded-lg right-2 top-0 bottom-0 flex items-center space-x-2 text-sm">
             {isEditMode && (
               <button
@@ -213,7 +191,7 @@ export default function PlaceModal({
             )}
             <button
               onClick={handleEdit}
-              className="px-2 py-0.5 bg-gray-100 font-semibold hover:bg-gray-200 border text-black rounded-sm"
+              className="px-2 py-0.5 bg-gray-100 font-semibold hover:bg-gray-300 border text-black rounded-sm"
             >
               Edit
             </button>
@@ -225,7 +203,6 @@ export default function PlaceModal({
             </button>
           </div>
         </div>
-
         {editingCell && (
           <div className="absolute h-[35px] w-full flex items-center px-2 py-1 bg-gray-200">
             <input
@@ -242,7 +219,6 @@ export default function PlaceModal({
             </button>
           </div>
         )}
-
         <div className="w-full h-[calc(100%-3.5rem)] p-3 mt-5 overflow-auto">
           <div className="grid grid-cols-11 grid-rows-9 gap-1 w-full h-full">
             {Array.from({ length: rows }).map((_, rowIdx) =>

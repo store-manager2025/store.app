@@ -33,15 +33,19 @@ export interface Category {
   };
 }
 
-interface SelectedItem {
+export interface SelectedItem { 
   menuName: string;
   price: number;
   quantity: number;
+  menuId?: number;
 }
 
 interface PosState {
   storeId: number | null;
   tableName: string | null;
+  
+  placeId: number | null;
+  orderId: number | null;
 
   // 카테고리 목록 & 캐싱
   categories: Category[];
@@ -52,24 +56,25 @@ interface PosState {
   
   isLoading: boolean;
 
+  setPlaceId: (id: number | null) => void;
+  setOrderId: (id: number | null) => void;
+
   setStoreId: (id: number | null) => void;
   setTableName: (name: string | null) => void;
 
+  setSelectedItems: (items: SelectedItem[]) => void;
   fetchCategories: (storeId: number) => Promise<void>;
-
-  /**
-   * fetchMenusByCategory:
-   * forceReload 옵션이 true이면 캐시 무시하고 서버 재요청,
-   * 기본값은 false.
-   */
+  fetchUnpaidOrderByPlace: (placeId: number) => Promise<void>;
   fetchMenusByCategory: (categoryId: number, forceReload?: boolean) => Promise<void>;
 
   // 캐시 무효화 액션
   invalidateMenuCache: (categoryId: number) => void;
 
-  addItem: (menuName: string, price: number) => void;
+  addItem: (menuName: string, price: number, menuId?: number) => void;
   
   removeItem: (menuName: string) => void;
+
+  clearItems: () => void;
 
   resetData: () => void;
 }
@@ -77,6 +82,9 @@ interface PosState {
 export const usePosStore = create<PosState>((set, get) => ({
   storeId: null,
   tableName: null,
+
+  placeId: null,
+  orderId: null,
 
   categories: [],
   menuCache: {},
@@ -87,6 +95,10 @@ export const usePosStore = create<PosState>((set, get) => ({
 
   setStoreId: (id) => set({ storeId: id }),
   setTableName: (name) => set({ tableName: name }),
+
+  setPlaceId: (id) => set({ placeId: id }),
+  setOrderId: (id) => set({ orderId: id }),
+  setSelectedItems: (items) => set({ selectedItems: items }),
 
   fetchCategories: async (storeId: number) => {
     set({ isLoading: true });
@@ -143,6 +155,44 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
 
+  fetchUnpaidOrderByPlace: async (placeId: number) => {
+    set({ isLoading: true });
+    try {
+      const { data } = await axiosInstance.get(`/api/orders/places/${placeId}`);
+      if (data && data.orderStatus === "UNPAID") {
+        const selectedItems = data.menuDetail.map((menu: any) => ({
+          menuName: menu.menuName,
+          price: menu.totalPrice / menu.totalCount,
+          quantity: menu.totalCount,
+          menuId: menu.menuId,
+        }));
+        set({
+          orderId: data.orderId,
+          selectedItems,
+          placeId,
+          tableName: data.placeName,
+          storeId: data.storeId,
+          isLoading: false,
+        });
+      } else {
+        set({
+          orderId: null,
+          selectedItems: [],
+          placeId,
+          isLoading: false,
+        });
+      }
+    } catch (err) {
+      console.error("fetchUnpaidOrderByPlace error:", err);
+      set({
+        orderId: null,
+        selectedItems: [],
+        placeId,
+        isLoading: false,
+      });
+    }
+  },
+
   // 캐시 무효화 액션 (특정 카테고리의 캐시 제거)
   invalidateMenuCache: (categoryId: number) => {
     set((state) => {
@@ -152,15 +202,25 @@ export const usePosStore = create<PosState>((set, get) => ({
     });
   },
 
-  addItem: (menuName: string, price: number) => {
-    const { selectedItems } = get();
-    const idx = selectedItems.findIndex((it) => it.menuName === menuName);
-    if (idx >= 0) {
-      const updated = [...selectedItems];
-      updated[idx].quantity += 1;
-      set({ selectedItems: updated });
+  addItem: (menuName, price, menuId) => {
+    const existingItem = get().selectedItems.find(
+      (item) => item.menuName === menuName
+    );
+    if (existingItem) {
+      set({
+        selectedItems: get().selectedItems.map((item) =>
+          item.menuName === menuName
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        ),
+      });
     } else {
-      set({ selectedItems: [...selectedItems, { menuName, price, quantity: 1 }] });
+      set({
+        selectedItems: [
+          ...get().selectedItems,
+          { menuName, price, quantity: 1, menuId },
+        ],
+      });
     }
   },
 
@@ -169,9 +229,13 @@ export const usePosStore = create<PosState>((set, get) => ({
     set({ selectedItems: selectedItems.filter(item => item.menuName !== menuName) });
   },
 
+  clearItems: () => set({ selectedItems: [] }),
+
   resetData: () => {
     set({
       tableName: null,
+      placeId: null,
+      orderId: null,
       categories: [],
       menuCache: {},
       currentMenus: [],

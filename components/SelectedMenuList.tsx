@@ -1,15 +1,14 @@
+// components/SelectedMenuList.tsx
 "use client";
+
 import React, { useState } from "react";
-import { usePosStore } from "../store/usePosStore";
-import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
+import axiosInstance from "@/lib/axiosInstance";
+import { usePosStore, SelectedItem } from "../store/usePosStore";
 
 interface SwipeableItemProps {
-  item: {
-    menuName: string;
-    price: number;
-    quantity: number;
-  };
+  item: SelectedItem;
   onDelete: () => void;
 }
 
@@ -19,25 +18,22 @@ function SwipeableItem({ item, onDelete }: SwipeableItemProps) {
   const [isSwiped, setIsSwiped] = useState(false);
   const [dragging, setDragging] = useState(false);
 
-  /** 터치 & 마우스 공통 시작 이벤트 */
   const handleStart = (x: number) => {
     setStartX(x);
     setDragging(true);
   };
 
-  /** 터치 & 마우스 공통 이동 이벤트 */
   const handleMove = (x: number) => {
     if (startX !== null) {
       const deltaX = x - startX;
-      setTranslateX(Math.max(-80, Math.min(0, deltaX))); // -80px 제한
+      setTranslateX(Math.max(-80, Math.min(0, deltaX)));
     }
   };
 
-  /** 터치 & 마우스 공통 종료 이벤트 */
   const handleEnd = () => {
     if (translateX < -30) {
       setIsSwiped(true);
-      setTranslateX(-80); // 고정
+      setTranslateX(-80);
     } else {
       setIsSwiped(false);
       setTranslateX(0);
@@ -46,7 +42,6 @@ function SwipeableItem({ item, onDelete }: SwipeableItemProps) {
     setDragging(false);
   };
 
-  /** 삭제 버튼 클릭 시 상태 초기화 후 삭제 실행 */
   const handleDelete = () => {
     setIsSwiped(false);
     setTranslateX(0);
@@ -55,28 +50,22 @@ function SwipeableItem({ item, onDelete }: SwipeableItemProps) {
 
   return (
     <div className="relative w-full border-b overflow-hidden">
-      {/* 삭제 버튼 */}
       <button
-        className={`absolute top-0 right-0 h-full w-16 flex items-center justify-center 
-    bg-red-500 text-white transition-all border-l border-gray-300 border-b ${
-      isSwiped ? "translate-x-0" : "translate-x-full"
-    }`}
+        className={`absolute top-0 right-0 h-full w-16 flex items-center justify-center bg-red-500 text-white transition-all border-l border-gray-300 border-b ${
+          isSwiped ? "translate-x-0" : "translate-x-full"
+        }`}
         onClick={handleDelete}
       >
         <Trash2 className="w-5 h-5" />
       </button>
-
-      {/* 스와이프 가능 영역 */}
       <div
         className={`flex items-center justify-between p-5 text-lg bg-white transition-transform duration-200 ${
           dragging ? "cursor-grabbing" : "cursor-pointer"
         }`}
         style={{ transform: `translateX(${translateX}px)` }}
-        /** 터치 이벤트 */
         onTouchStart={(e) => handleStart(e.touches[0].clientX)}
         onTouchMove={(e) => handleMove(e.touches[0].clientX)}
         onTouchEnd={handleEnd}
-        /** 마우스 이벤트 */
         onMouseDown={(e) => handleStart(e.clientX)}
         onMouseMove={(e) => dragging && handleMove(e.clientX)}
         onMouseUp={handleEnd}
@@ -91,20 +80,107 @@ function SwipeableItem({ item, onDelete }: SwipeableItemProps) {
   );
 }
 
-/** 선택된 메뉴 리스트 컴포넌트 */
 export default function SelectedMenuList() {
   const router = useRouter();
-  const { selectedItems, removeItem } = usePosStore();
+  const {
+    storeId,
+    placeId,
+    selectedItems,
+    removeItem,
+    clearItems,
+    orderId,
+    setOrderId,
+    setTableName,
+    setPlaceId,
+  } = usePosStore();
 
   const totalPrice = selectedItems.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0
   );
 
-  const handlePaymentClick = () => {
+  const createOrder = async () => {
+    if (!storeId || !placeId || selectedItems.length === 0) {
+      console.log("주문 생성 조건 부족:", { storeId, placeId, selectedItems });
+      alert("스토어, 테이블, 메뉴를 선택해주세요.");
+      return null;
+    }
+
+    const orderRequest = {
+      storeId,
+      placeId,
+      items: selectedItems.map((item) => ({
+        menuId: item.menuId || 0,
+        quantity: item.quantity,
+      })),
+    };
+
+    try {
+      console.log("주문 생성 요청:", orderRequest);
+      await axiosInstance.post("/api/orders", orderRequest);
+      // 백엔드에서 orderId를 반환하지 않으므로 임시 생성
+      const newOrderId = Date.now();
+      console.log("주문 생성 성공, 임시 orderId:", newOrderId);
+      return newOrderId;
+    } catch (error) {
+      console.error("주문 생성 실패:", error);
+      alert("주문 생성 중 오류가 발생했습니다.");
+      return null;
+    }
+  };
+
+  const handleOrderClick = async () => {
+    const newOrderId = await createOrder();
+    if (newOrderId) {
+      setOrderId(newOrderId);
+      clearItems();
+      setTableName("");
+      setPlaceId(null);
+      alert("주문이 완료되었습니다.");
+    }
+  };
+
+  const handlePaymentClick = async () => {
+    console.log("Pay 버튼 클릭 시작:", { storeId, placeId, orderId, selectedItems });
+
+    if (!placeId) {
+      console.log("placeId 없음:", placeId);
+      alert("테이블을 선택해주세요.");
+      return;
+    }
+
+    let currentOrderId = orderId;
+
+    if (!currentOrderId && selectedItems.length > 0) {
+      console.log("orderId 없음, 주문 생성 시도");
+      currentOrderId = await createOrder();
+      if (!currentOrderId) {
+        console.log("주문 생성 실패로 결제 페이지 이동 중단");
+        return;
+      }
+      setOrderId(currentOrderId);
+    }
+
+    if (!currentOrderId) {
+      console.log("currentOrderId 없음:", currentOrderId);
+      alert("결제할 주문이 없습니다.");
+      return;
+    }
+
     const searchParams = new URLSearchParams();
+    searchParams.set("orderId", currentOrderId.toString());
+    searchParams.set("placeId", placeId.toString());
     searchParams.set("selectedItems", JSON.stringify(selectedItems));
-    router.push(`/payment?${searchParams.toString()}`);
+    const paymentUrl = `/payment?${searchParams.toString()}`;
+    console.log("결제 페이지로 이동 시도:", paymentUrl);
+
+    try {
+      router.push(paymentUrl);
+      console.log("router.push 실행 완료");
+    } catch (error) {
+      console.error("router.push 실패:", error);
+      alert("페이지 이동 중 오류가 발생했습니다.");
+    }
   };
 
   return (
@@ -128,10 +204,16 @@ export default function SelectedMenuList() {
         </div>
         <div className="flex space-x-2 pb-4 gap-2">
           <button
+            onClick={handleOrderClick}
+            className="flex-1 py-4 bg-blue-500 hover:bg-blue-600 text-white transition rounded-md text-sm"
+          >
+            Order
+          </button>
+          <button
             onClick={handlePaymentClick}
             className="flex-1 py-4 bg-gray-200 hover:bg-gray-300 transition rounded-md text-sm"
           >
-            pay
+            Pay
           </button>
         </div>
       </div>

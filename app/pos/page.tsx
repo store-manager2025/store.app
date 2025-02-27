@@ -9,20 +9,30 @@ import { usePosStore } from "../../store/usePosStore";
 import CategoryButton from "../../components/CategoryButton";
 import MenuButton from "../../components/PosMenuButton";
 import SelectedMenuList from "../../components/SelectedMenuList";
-import PlaceModal from "../../components/PlaceModal"; 
+import PlaceModal from "../../components/PlaceModal";
+
+interface SelectedItem {
+  menuName: string;
+  price: number;
+  quantity: number;
+  menuId?: number;
+}
 
 /** PosPage 화면 */
 export default function PosPage() {
   const router = useRouter();
-  
+
   // Zustand
   const {
     storeId,
     tableName,
+    setPlaceId,
     categories,
-    currentMenus, // ✅ 현재 카테고리 메뉴
+    currentMenus,
     isLoading,
     setStoreId,
+    setOrderId,
+    setSelectedItems,
     setTableName,
     fetchCategories,
     fetchMenusByCategory,
@@ -49,11 +59,11 @@ export default function PosPage() {
       setStoreId(null);
     }
     // 기존 예시: setTableName("Table T1") -> 삭제 or 주석
-    setTableName(""); 
+    setTableName("");
   }, [setStoreId, setTableName]);
 
-   // 카테고리 불러오기
-   useEffect(() => {
+  // 카테고리 불러오기
+  useEffect(() => {
     if (storeId) {
       fetchCategories(storeId);
     }
@@ -87,8 +97,8 @@ export default function PosPage() {
     setSelectedCategoryId(catId);
   };
 
-  const handleMenuClick = (menuName: string, price: number) => {
-    addItem(menuName, price);
+  const handleMenuClick = (menuName: string, price: number, menuId: number) => {
+    addItem(menuName, price, menuId);
   };
 
   // 테이블 버튼 클릭 -> 모달 오픈
@@ -101,17 +111,22 @@ export default function PosPage() {
     setShowPlaceModal(false);
   };
 
-  // 테이블(좌석) 선택 시 tableName 세팅
-  const handlePlaceSelected = (placeName: string) => {
+  const handlePlaceSelected = (
+    placeName: string,
+    selectedPlaceId: number,
+    orderId?: number,
+    orderMenus?: SelectedItem[]
+  ) => {
     setTableName(placeName);
+    setPlaceId(selectedPlaceId);
+    setOrderId(orderId || null);
+    // 테이블 선택 시 기존 selectedItems 초기화 후 미결제 주문 메뉴로 업데이트
+    if (orderMenus && orderMenus.length > 0) {
+      setSelectedItems(orderMenus);
+    } else {
+      setSelectedItems([]);
+    }
     setShowPlaceModal(false);
-  };
-
-  // 결제 페이지로 이동하며 선택된 아이템 전달
-  const handlePaymentClick = () => {
-    const searchParams = new URLSearchParams();
-    searchParams.set("selectedItems", JSON.stringify(selectedItems));
-    router.push(`/payment?${searchParams.toString()}`);
   };
 
   /**
@@ -152,7 +167,11 @@ export default function PosPage() {
                     price={fullItem.price}
                     color={fullItem.menuStyle.colorCode}
                     onClick={() =>
-                      handleMenuClick(fullItem.menuName, fullItem.price)
+                      handleMenuClick(
+                        fullItem.menuName,
+                        fullItem.price,
+                        fullItem.menuId
+                      )
                     }
                   />
                 </div>
@@ -176,14 +195,13 @@ export default function PosPage() {
                       price={item.price}
                       color={item.menuStyle.colorCode}
                       onClick={() =>
-                        handleMenuClick(item.menuName, item.price)
+                        handleMenuClick(item.menuName, item.price, item.menuId)
                       }
                     />
                   </div>
                 ))}
                 {cellMenus.length === 1 && (
-                  <div className="flex-1 flex items-center justify-center bg-white">
-                  </div>
+                  <div className="flex-1 flex items-center justify-center bg-white"></div>
                 )}
               </div>
             );
@@ -251,13 +269,16 @@ export default function PosPage() {
 
         {/* 오른쪽: 선택된 메뉴 (30%) */}
         <div className="flex flex-col w-[30%] border-l-2 border-gray-300 overflow-hidden">
-        <SelectedMenuList />
+          <SelectedMenuList />
         </div>
 
         {/* (모달) PlaceModal */}
-      {showPlaceModal && (
-        <PlaceModal onClose={handleCloseModal} onPlaceSelected={handlePlaceSelected} />
-      )}
+        {showPlaceModal && (
+          <PlaceModal
+            onClose={handleCloseModal}
+            onPlaceSelected={handlePlaceSelected}
+          />
+        )}
       </div>
     </div>
   );
