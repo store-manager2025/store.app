@@ -10,7 +10,6 @@ export default function LoginPage() {
   const [autoLogin, setAutoLogin] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // 로그인 페이지 접근 시 토큰이 있으면 홈(`/home`)으로 이동
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (token) {
@@ -25,21 +24,22 @@ export default function LoginPage() {
         email: email,
         password: password,
       });
-      // 백엔드 응답 예시: { message, name, accessToken, refreshToken }
-      const { accessToken, refreshToken } = response.data;
-      if (accessToken && refreshToken) {
-        // accessToken과 refreshToken을 모두 저장
-        localStorage.setItem("accessToken", accessToken);
-        localStorage.setItem("refreshToken", refreshToken);
+      console.log("Login response:", response.data); // 응답 데이터 확인
+      const { access_token, refresh_token } = response.data;
+      if (access_token && refresh_token) {
+        localStorage.setItem("accessToken", access_token);
+        localStorage.setItem("refreshToken", refresh_token);
         if (autoLogin) {
           localStorage.setItem("autoLogin", "true");
         } else {
           localStorage.removeItem("autoLogin");
         }
+        router.push("/home");
+      } else {
+        setErrorMsg("토큰이 응답에 포함되지 않았습니다.");
       }
-      router.push("/home");
     } catch (error: any) {
-      console.error("Login failed: ", error);
+      console.error("Login failed: ", error.response?.data || error.message);
       setErrorMsg("로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요.");
     }
   };
@@ -69,7 +69,6 @@ export default function LoginPage() {
             required
           />
         </div>
-        {/* 자동 로그인 체크박스 */}
         <div className="mb-4 flex items-center">
           <input
             type="checkbox"
