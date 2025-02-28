@@ -1,6 +1,4 @@
-// components/SelectedMenuList.tsx
 "use client";
-
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
@@ -100,14 +98,8 @@ export default function SelectedMenuList() {
     0
   );
 
-  // ─────────────────────────────────────────────
-  // [추가] 미결제 주문이 없는 경우 자동 초기화
-  // ─────────────────────────────────────────────
+  // 미결제 주문이 없으면 selectedItems 초기화
   useEffect(() => {
-    /**
-     * placeId는 선택되었는데 orderId가 없다면 = "이 테이블에 미결제 주문이 없음"
-     * 이 시점에 선택된 메뉴가 남아 있으면 clearItems로 비워줌
-     */
     if (placeId && !orderId) {
       clearItems();
     }
@@ -130,17 +122,11 @@ export default function SelectedMenuList() {
     };
 
     try {
-      // 1) 백엔드로 주문 생성 요청 (응답에 orderId가 없어도 됨)
       await axiosInstance.post("/api/orders", orderRequest);
       console.log("주문 생성 성공");
-
-      // 2) 바로 해당 테이블(placeId)의 미결제 주문 조회
       await fetchUnpaidOrderByPlace(placeId);
-
-      // 3) 이제 Store에 실제 orderId가 세팅됨
       const realOrderId = usePosStore.getState().orderId;
       console.log("방금 생성된 실제 orderId:", realOrderId);
-
       return realOrderId;
     } catch (error) {
       console.error("주문 생성 실패:", error);
@@ -169,25 +155,19 @@ export default function SelectedMenuList() {
     });
 
     if (!placeId) {
-      console.log("placeId 없음:", placeId);
       alert("테이블을 선택해주세요.");
       return;
     }
 
     let currentOrderId = orderId;
-
-    // (A) orderId 없고, 메뉴가 담겨있으면 -> 새 주문 생성
     let isNewOrder = 0;
     if (!currentOrderId && selectedItems.length > 0) {
       currentOrderId = await createOrder();
-      if (!currentOrderId) {
-        return; // 주문 생성 실패 -> 중단
-      }
+      if (!currentOrderId) return;
       setOrderId(currentOrderId);
-      isNewOrder = 1; // 새로 생성된 주문
+      isNewOrder = 1;
     }
 
-    // (B) 여전히 orderId 없으면 -> 결제 불가
     if (!currentOrderId) {
       alert("결제할 주문이 없습니다.");
       return;
@@ -197,8 +177,6 @@ export default function SelectedMenuList() {
     searchParams.set("orderId", currentOrderId.toString());
     searchParams.set("placeId", placeId.toString());
     searchParams.set("selectedItems", JSON.stringify(selectedItems));
-
-    // 4) 여기서 isNewOrder 파라미터를 추가
     searchParams.set("isNewOrder", isNewOrder.toString());
 
     const paymentUrl = `/payment?${searchParams.toString()}`;
@@ -213,6 +191,30 @@ export default function SelectedMenuList() {
     }
   };
 
+  const handleMenuDelete = async (item: SelectedItem) => {
+    if (orderId) {
+      const refundData = [
+        {
+          menuId: item.menuId,
+          quantity: item.quantity,
+        },
+      ];
+      try {
+        await axiosInstance({
+          url: `/api/orders/${orderId}`,
+          method: "delete",
+          data: refundData,
+          headers: { "Content-Type": "application/json" },
+        });
+        console.log(`메뉴 ${item.menuName} 삭제 완료`);
+      } catch (err) {
+        console.error("메뉴 삭제 실패:", err);
+        return;
+      }
+    }
+    removeItem(item.menuName);
+  };
+
   return (
     <div className="flex flex-col h-full w-full">
       <h1 className="font-mono text-gray-700 py-4 text-lg text-center border-b-2 border-gray-300">
@@ -223,7 +225,7 @@ export default function SelectedMenuList() {
           <SwipeableItem
             key={idx}
             item={item}
-            onDelete={() => removeItem(item.menuName)}
+            onDelete={() => handleMenuDelete(item)}
           />
         ))}
       </div>
