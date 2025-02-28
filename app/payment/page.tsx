@@ -27,9 +27,14 @@ const mockPGApi = (): Promise<MockPGResult> => {
 export default function PaymentPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const selectedItems: Item[] = JSON.parse(searchParams.get("selectedItems") || "[]");
+  const selectedItems: Item[] = JSON.parse(
+    searchParams.get("selectedItems") || "[]"
+  );
   const orderId = searchParams.get("orderId");
   const placeId = searchParams.get("placeId");
+
+  const isNewOrderParam = searchParams.get("isNewOrder");
+
   const { resetData } = usePosStore();
 
   // 상태 관리
@@ -157,11 +162,28 @@ export default function PaymentPage() {
     }
   };
 
-  // 취소 버튼
-  const handleCancel = () => {
+  const handleCancel = async () => {
+    if (isNewOrderParam === "1" && orderId) {
+      try {
+        // selectedItems 기반으로 RefundOrderDto 리스트 생성
+        const refundData = selectedItems.map((item) => ({
+          menuId: item.menuId,
+          quantity: item.quantity,
+          orderPrice: item.price * item.quantity,
+        }));
+        await axiosInstance.delete(`/api/orders/${orderId}`, {
+          data: refundData,
+          headers: { "Content-Type": "application/json" },
+        });
+        console.log("새로 생성된 주문 취소(삭제) 완료:", orderId);
+      } catch (err) {
+        console.error("주문 삭제 실패:", err);
+      }
+    }
+    resetData();
     router.push("/pos");
   };
-
+  
   // 거스름돈 계산
   const changes = Math.max(0, charge + splitAmount - initialTotal);
 
@@ -178,21 +200,33 @@ export default function PaymentPage() {
       <div className="flex-1 flex items-center justify-center text-6xl font-bold text-gray-800">
         ₩{" "}
         <AnimatePresence mode="popLayout">
-          {totalAmount.toLocaleString().split("").map((char, index) => {
-            const isNumber = !isNaN(parseInt(char, 10));
-            return (
-              <motion.span
-                key={`${index}-${char}`}
-                initial={{ y: totalAmount > prevTotalAmount ? -20 : 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: totalAmount > prevTotalAmount ? 20 : -20, opacity: 0 }}
-                transition={{ duration: 0.5, ease: "easeInOut" }}
-                style={{ display: "inline-block", width: isNumber ? "1ch" : "auto" }}
-              >
-                {char}
-              </motion.span>
-            );
-          })}
+          {totalAmount
+            .toLocaleString()
+            .split("")
+            .map((char, index) => {
+              const isNumber = !isNaN(parseInt(char, 10));
+              return (
+                <motion.span
+                  key={`${index}-${char}`}
+                  initial={{
+                    y: totalAmount > prevTotalAmount ? -20 : 20,
+                    opacity: 0,
+                  }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{
+                    y: totalAmount > prevTotalAmount ? 20 : -20,
+                    opacity: 0,
+                  }}
+                  transition={{ duration: 0.5, ease: "easeInOut" }}
+                  style={{
+                    display: "inline-block",
+                    width: isNumber ? "1ch" : "auto",
+                  }}
+                >
+                  {char}
+                </motion.span>
+              );
+            })}
         </AnimatePresence>
       </div>
 
@@ -252,7 +286,9 @@ export default function PaymentPage() {
 
         {/* 기타 결제 방법 및 Done 버튼 */}
         <div className="w-3/4 mt-4 flex flex-col items-center">
-          <h3 className="text-gray-600 font-bold text-center mb-10">Other payment methods</h3>
+          <h3 className="text-gray-600 font-bold text-center mb-10">
+            Other payment methods
+          </h3>
           <div className="flex space-x-2 mb-4 w-full justify-center">
             <button
               onClick={handleCreditCardClick}

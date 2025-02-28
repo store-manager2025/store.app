@@ -1,7 +1,7 @@
 // components/SelectedMenuList.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import axiosInstance from "@/lib/axiosInstance";
@@ -92,12 +92,26 @@ export default function SelectedMenuList() {
     setOrderId,
     setTableName,
     setPlaceId,
+    fetchUnpaidOrderByPlace,
   } = usePosStore();
 
   const totalPrice = selectedItems.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0
   );
+
+  // ─────────────────────────────────────────────
+  // [추가] 미결제 주문이 없는 경우 자동 초기화
+  // ─────────────────────────────────────────────
+  useEffect(() => {
+    /**
+     * placeId는 선택되었는데 orderId가 없다면 = "이 테이블에 미결제 주문이 없음"
+     * 이 시점에 선택된 메뉴가 남아 있으면 clearItems로 비워줌
+     */
+    if (placeId && !orderId) {
+      clearItems();
+    }
+  }, [placeId, orderId, clearItems]);
 
   const createOrder = async () => {
     if (!storeId || !placeId || selectedItems.length === 0) {
@@ -116,12 +130,18 @@ export default function SelectedMenuList() {
     };
 
     try {
-      console.log("주문 생성 요청:", orderRequest);
+      // 1) 백엔드로 주문 생성 요청 (응답에 orderId가 없어도 됨)
       await axiosInstance.post("/api/orders", orderRequest);
-      // 백엔드에서 orderId를 반환하지 않으므로 임시 생성
-      const newOrderId = Date.now();
-      console.log("주문 생성 성공, 임시 orderId:", newOrderId);
-      return newOrderId;
+      console.log("주문 생성 성공");
+
+      // 2) 바로 해당 테이블(placeId)의 미결제 주문 조회
+      await fetchUnpaidOrderByPlace(placeId);
+
+      // 3) 이제 Store에 실제 orderId가 세팅됨
+      const realOrderId = usePosStore.getState().orderId;
+      console.log("방금 생성된 실제 orderId:", realOrderId);
+
+      return realOrderId;
     } catch (error) {
       console.error("주문 생성 실패:", error);
       alert("주문 생성 중 오류가 발생했습니다.");
@@ -141,7 +161,12 @@ export default function SelectedMenuList() {
   };
 
   const handlePaymentClick = async () => {
-    console.log("Pay 버튼 클릭 시작:", { storeId, placeId, orderId, selectedItems });
+    console.log("Pay 버튼 클릭 시작:", {
+      storeId,
+      placeId,
+      orderId,
+      selectedItems,
+    });
 
     if (!placeId) {
       console.log("placeId 없음:", placeId);
@@ -151,18 +176,19 @@ export default function SelectedMenuList() {
 
     let currentOrderId = orderId;
 
+    // (A) orderId 없고, 메뉴가 담겨있으면 -> 새 주문 생성
+    let isNewOrder = 0;
     if (!currentOrderId && selectedItems.length > 0) {
-      console.log("orderId 없음, 주문 생성 시도");
       currentOrderId = await createOrder();
       if (!currentOrderId) {
-        console.log("주문 생성 실패로 결제 페이지 이동 중단");
-        return;
+        return; // 주문 생성 실패 -> 중단
       }
       setOrderId(currentOrderId);
+      isNewOrder = 1; // 새로 생성된 주문
     }
 
+    // (B) 여전히 orderId 없으면 -> 결제 불가
     if (!currentOrderId) {
-      console.log("currentOrderId 없음:", currentOrderId);
       alert("결제할 주문이 없습니다.");
       return;
     }
@@ -171,6 +197,10 @@ export default function SelectedMenuList() {
     searchParams.set("orderId", currentOrderId.toString());
     searchParams.set("placeId", placeId.toString());
     searchParams.set("selectedItems", JSON.stringify(selectedItems));
+
+    // 4) 여기서 isNewOrder 파라미터를 추가
+    searchParams.set("isNewOrder", isNewOrder.toString());
+
     const paymentUrl = `/payment?${searchParams.toString()}`;
     console.log("결제 페이지로 이동 시도:", paymentUrl);
 
