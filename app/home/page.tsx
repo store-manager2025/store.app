@@ -28,7 +28,8 @@ export default function HomePage() {
   // 토큰 확인 및 자동 로그아웃
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
-    if (!token) {
+    const token2 = localStorage.getItem("refreshToken");
+    if (!token || !token2) {
       alert("세션이 만료되었습니다. 다시 로그인해주세요.");
       handleLogout();
     }
