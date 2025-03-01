@@ -10,13 +10,12 @@ import CategoryButton from "../../components/CategoryButton";
 import MenuButton from "../../components/PosMenuButton";
 import SelectedMenuList from "../../components/SelectedMenuList";
 import PlaceModal from "../../components/PlaceModal";
-import axiosInstance from "@/lib/axiosInstance";
 
 interface SelectedItem {
   menuName: string;
   price: number;
   quantity: number;
-  menuId?: number;
+  menuId: number;
 }
 
 /** PosPage 화면 */
@@ -73,6 +72,15 @@ export default function PosPage() {
     }
   }, [storeId, fetchCategories]);
 
+  // 모든 카테고리의 메뉴를 사전 로드
+  useEffect(() => {
+    if (storeId && categories.length > 0) {
+      categories.forEach((cat) => {
+        fetchMenusByCategory(cat.categoryId);
+      });
+    }
+  }, [storeId, categories, fetchMenusByCategory]);
+
   // -----------------------------------------------------
   // 1-2) categories가 업데이트되면 첫 번째 카테고리 선택 (초기 설정)
   // -----------------------------------------------------
@@ -101,33 +109,8 @@ export default function PosPage() {
     setSelectedCategoryId(catId);
   };
 
-  // 메뉴 클릭 시
-  const handleMenuClick = async (menuName: string, price: number, menuId: number) => {
-    if (orderId) {
-      // 주문이 이미 생성된 경우: 추가 주문 API 활용
-      const addRequest = {
-        storeId,
-        placeId,
-        items: [
-          {
-            menuId: menuId,
-            quantity: 1,
-          },
-        ],
-      };
-      try {
-        await axiosInstance.post(`/api/orders/add/${orderId}`, addRequest);
-        console.log("추가 주문 성공:", addRequest);
-        // 최신 주문 상태 업데이트
-        await fetchUnpaidOrderByPlace(placeId!);
-      } catch (error) {
-        console.error("추가 주문 실패:", error);
-        alert("추가 주문에 실패했습니다.");
-      }
-    } else {
-      // 주문이 없으면 기존 로컬 상태 업데이트
-      addItem(menuName, price, menuId);
-    }
+  const handleMenuClick = (menuName: string, price: number, menuId: number) => {
+    addItem(menuName, price, menuId);
   };
 
   // 테이블 버튼 클릭 -> 모달 오픈
@@ -143,20 +126,21 @@ export default function PosPage() {
   const handlePlaceSelected = (
     placeName: string,
     selectedPlaceId: number,
-    orderId?: number,
+    orderIdFromApi?: number,
     orderMenus?: SelectedItem[]
   ) => {
     setTableName(placeName);
     setPlaceId(selectedPlaceId);
-    setOrderId(orderId || null);
-    // 테이블 선택 시 기존 selectedItems 초기화 후 미결제 주문 메뉴로 업데이트
-    if (orderMenus && orderMenus.length > 0) {
-      setSelectedItems(orderMenus);
+    if (orderIdFromApi && orderIdFromApi > 0) {
+      setOrderId(orderIdFromApi);
+      setSelectedItems(orderMenus || []);
     } else {
+      setOrderId(null);
       setSelectedItems([]);
     }
     setShowPlaceModal(false);
   };
+
 
   /**
    * (A) 5×4 그리드에서, menuStyle.positionX/Y로 위치 지정 + FULL/HALF 구분

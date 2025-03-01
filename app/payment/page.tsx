@@ -35,7 +35,7 @@ export default function PaymentPage() {
 
   const isNewOrderParam = searchParams.get("isNewOrder");
 
-  const { resetData } = usePosStore();
+  const { resetData, fetchUnpaidOrderByPlace } = usePosStore();
 
   // 상태 관리
   const [totalAmount, setTotalAmount] = useState(0);
@@ -113,11 +113,22 @@ export default function PaymentPage() {
     }
   };
 
-  // Done 버튼 클릭 시 결제 완료
   const handleDoneClick = async () => {
-    if (totalAmount <= 0) {
+    if (charge + splitAmount >= initialTotal && initialTotal > 0) {
       try {
-        // 결제 데이터 구성
+        // 주문 상태 확인
+        if (orderId && placeId) {
+          const numericPlaceId = typeof placeId === 'string' ? parseInt(placeId) : placeId;
+          await fetchUnpaidOrderByPlace(numericPlaceId!); // 타입 변환 후 호출
+          const currentOrderId = usePosStore.getState().orderId;
+          if (!currentOrderId) {
+            alert("이미 결제 완료된 주문입니다.");
+            resetData();
+            router.push("/payment-completed");
+            return;
+          }
+        }
+  
         const payList = [];
         if (charge > 0) {
           payList.push({
@@ -132,33 +143,39 @@ export default function PaymentPage() {
           payList.push({
             paidMoney: splitAmount,
             paymentType: "CARD",
-            cardCompany: "",
-            cardNumber: "",
-            expiryDate: "",
+            cardCompany: "Unknown",
+            cardNumber: "0000-0000-0000-0000",
+            expiryDate: "2030/12",
           });
         }
-
+  
         const paymentData = {
-          orderId: orderId ? parseInt(orderId) : null, // PosPage에서 전달된 orderId 사용
-          placeId: placeId ? parseInt(placeId) : null, // PosPage에서 전달된 placeId 사용
+          orderId: orderId ? parseInt(orderId) : null,
+          placeId: placeId ? parseInt(placeId) : null, // 여기서도 변환
           totalAmount: initialTotal,
           discountAmount: 0,
           payList,
         };
-
-        // 결제 요청
+  
+        console.debug("Sending payment request:", JSON.stringify(paymentData, null, 2));
         const response = await axiosInstance.post("/api/pay", paymentData);
         console.log("결제 성공:", response.data);
-
-        // 결제 완료 후 상태 초기화 및 페이지 이동
+  
         resetData();
         router.push("/payment-completed");
-      } catch (error) {
-        console.error("결제 오류:", error);
-        alert("결제 처리 중 오류가 발생했습니다.");
+      } catch (error: any) {
+        const errorData = error.response?.data as { error?: string; message?: string };
+        const errorMessage = errorData?.message || error.message;
+        console.error("결제 오류:", error.response?.data || error);
+  
+        if (errorData?.error === "ALREADY_PAYMENT") {
+          alert("결제 처리 중 오류가 발생했습니다. 주문 상태를 확인하거나 새 주문을 생성해주세요.");
+        } else {
+          alert(`결제 처리 중 오류가 발생했습니다: ${errorMessage}`);
+        }
       }
     } else {
-      alert("결제 금액이 부족합니다.");
+      alert(`결제 금액이 부족합니다. 총액: ${initialTotal}, 지불: ${charge + splitAmount}`);
     }
   };
 

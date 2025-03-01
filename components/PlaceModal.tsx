@@ -23,6 +23,7 @@ interface PlaceModalProps {
 }
 
 export default function PlaceModal({ onClose, onPlaceSelected }: PlaceModalProps) {
+  const { menuCache, fetchUnpaidOrderByPlace } = usePosStore();
   const [storeId, setStoreId] = useState<number | null>(null);
   const cols = 11;
   const rows = 9;
@@ -31,7 +32,6 @@ export default function PlaceModal({ onClose, onPlaceSelected }: PlaceModalProps
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
   const [newPlaceName, setNewPlaceName] = useState("");
-  const { fetchUnpaidOrderByPlace } = usePosStore();
 
   useEffect(() => {
     const saved = localStorage.getItem("currentStoreId");
@@ -122,12 +122,26 @@ export default function PlaceModal({ onClose, onPlaceSelected }: PlaceModalProps
     try {
       const { data } = await axiosInstance.get(`/api/orders/places/${place.placeId}`);
       const unpaidOrderId = data?.orderId || null;
-      const orderMenus = data?.menuDetail.map((menu: any) => ({
-        menuName: menu.menuName,
-        price: menu.totalPrice / menu.totalCount,
-        quantity: menu.totalCount,
-        menuId: menu.menuId,
-      })) || [];
+
+      const orderMenus = data?.menuDetail.map((menu: any) => {
+        let menuId = menu.menuId ?? null;
+        if (!menuId && menu.menuName) {
+          const allMenus = Object.values(menuCache).flat();
+          const found = allMenus.find((m) => m.menuName === menu.menuName);
+          if (found) {
+            menuId = found.menuId;
+          } else {
+            console.warn(`Menu ID not found for ${menu.menuName}`);
+          }
+        }
+        return {
+          menuName: menu.menuName,
+          price: menu.totalPrice / menu.totalCount,
+          quantity: menu.totalCount,
+          menuId,
+        };
+      }) || [];
+
       onPlaceSelected(place.placeName, place.placeId, unpaidOrderId, orderMenus);
     } catch (err) {
       console.error("미결제 주문 조회 실패:", err);
