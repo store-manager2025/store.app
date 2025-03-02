@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import axiosInstance from "@/lib/axiosInstance";
 
+// 메뉴 스타일 타입 정의
 type MenuStyle = {
   uiId: number;
   positionX: number;
@@ -10,6 +11,7 @@ type MenuStyle = {
   sizeType: "FULL" | "HALF";
 };
 
+// 메뉴 인터페이스 정의
 export interface Menu {
   menuId: number;
   uiId: number;
@@ -21,6 +23,7 @@ export interface Menu {
   menuStyle: MenuStyle;
 }
 
+// 카테고리 인터페이스 정의
 export interface Category {
   categoryId: number;
   categoryName: string;
@@ -33,6 +36,7 @@ export interface Category {
   };
 }
 
+// 선택된 아이템 인터페이스 정의
 export interface SelectedItem {
   menuName: string;
   price: number;
@@ -40,6 +44,7 @@ export interface SelectedItem {
   menuId: number;
 }
 
+// POS 상태 인터페이스 정의
 interface PosState {
   storeId: number | null;
   tableName: string | null;
@@ -84,10 +89,20 @@ interface PosState {
   resetData: () => void;
 }
 
+// 새로운 스토어 인터페이스 정의 (기존 타입 재사용 가능)
+interface NewStoreState {
+  newStoreId: number | null;
+  newTableName: string | null;
+  newSelectedItems: SelectedItem[]; // 기존 SelectedItem 타입 재사용
+  addNewItem: (item: SelectedItem) => void; // 새로운 아이템 추가
+  clearNewItems: () => void; // 새로운 아이템 삭제
+}
+
+// POS 스토어 생성
 export const usePosStore = create<PosState>((set, get) => ({
   storeId: null,
   tableName: null,
-  orderMenuId:null,
+  orderMenuId: null,
 
   placeId: null,
   orderId: null,
@@ -99,23 +114,23 @@ export const usePosStore = create<PosState>((set, get) => ({
   selectedItems: [],
   isLoading: false,
 
-  setStoreId: (id) => set({ storeId: id }),
-  setTableName: (name) => set({ tableName: name }),
+  setStoreId: (id) => set({ storeId: id }), // 매장 ID 설정
+  setTableName: (name) => set({ tableName: name }), // 테이블 이름 설정
 
-  setPlaceId: (id) => set({ placeId: id }),
-  setOrderId: (id) => set({ orderId: id }),
-  setorderMenuId: (id) => set({ orderId: id }),
-  setSelectedItems: (items) => set({ selectedItems: items }),
+  setPlaceId: (id) => set({ placeId: id }), // 장소 ID 설정
+  setOrderId: (id) => set({ orderId: id }), // 주문 ID 설정
+  setorderMenuId: (id) => set({ orderMenuId: id }), // 주문 메뉴 ID 설정 (수정: orderId -> orderMenuId)
+
+  setSelectedItems: (items) => set({ selectedItems: items }), // 선택된 아이템 설정
 
   fetchCategories: async (storeId: number) => {
+    // 카테고리 목록을 비동기적으로 가져옴
     set({ isLoading: true });
     try {
-      const { data } = await axiosInstance.get(
-        `/api/categories/all/${storeId}`
-      );
+      const { data } = await axiosInstance.get(`/api/categories/all/${storeId}`);
       set({ categories: data, isLoading: false });
     } catch (err) {
-      console.error("fetchCategories error:", err);
+      console.error("fetchCategories 오류:", err);
       set({
         categories: [{ categoryId: -1, categoryName: "unconnected" }],
         isLoading: false,
@@ -123,11 +138,11 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
 
-  // 메뉴 캐싱 및 강제 새로고침 옵션 추가
   fetchMenusByCategory: async (
     categoryId: number,
     forceReload: boolean = false
   ) => {
+    // 카테고리별 메뉴를 비동기적으로 가져옴
     set({ isLoading: true });
     const { menuCache } = get();
     console.debug(
@@ -162,7 +177,7 @@ export const usePosStore = create<PosState>((set, get) => ({
         isLoading: false,
       }));
     } catch (err) {
-      console.error("fetchMenusByCategory error:", err);
+      console.error("fetchMenusByCategory 오류:", err);
       set({
         currentMenus: [
           {
@@ -188,41 +203,50 @@ export const usePosStore = create<PosState>((set, get) => ({
   },
 
   fetchUnpaidOrderByPlace: async (placeId: number) => {
-  set({ isLoading: true });
-  try {
-    const { data } = await axiosInstance.get(`/api/orders/places/${placeId}`);
-    if (data && data.orderStatus === "UNPAID") {
-      const selectedItems = data.menuDetail.map((menu: any) => {
-        let menuId = menu.menuId ?? menu.id ?? null;
-        if (menuId == null) {
-          // menuCache에서 모든 메뉴를 검색
-          const allMenus = Object.values(get().menuCache).flat();
-          const found = allMenus.find((m) => m.menuName === menu.menuName);
-          if (found) {
-            menuId = found.menuId;
-            console.debug(`[fetchUnpaidOrderByPlace] Found menuId ${menuId} for ${menu.menuName} in menuCache`);
-          } else {
-            console.warn(`[fetchUnpaidOrderByPlace] Menu ID not found for ${menu.menuName} in menuCache`);
-            // 추가로 보완할 수 있다면 여기서 로직 추가 가능
+    // 미결제 주문을 장소 ID로 가져옴
+    set({ isLoading: true });
+    try {
+      const { data } = await axiosInstance.get(`/api/orders/places/${placeId}`);
+      if (data && data.orderStatus === "UNPAID") {
+        const selectedItems = data.menuDetail.map((menu: any) => {
+          let menuId = menu.menuId ?? menu.id ?? null;
+          if (menuId == null) {
+            // menuCache에서 모든 메뉴를 검색
+            const allMenus = Object.values(get().menuCache).flat();
+            const found = allMenus.find((m) => m.menuName === menu.menuName);
+            if (found) {
+              menuId = found.menuId;
+              console.debug(`[fetchUnpaidOrderByPlace] Found menuId ${menuId} for ${menu.menuName} in menuCache`);
+            } else {
+              console.warn(`[fetchUnpaidOrderByPlace] Menu ID not found for ${menu.menuName} in menuCache`);
+            }
           }
-        }
-        return {
-          menuName: menu.menuName,
-          price: menu.totalPrice / menu.totalCount,
-          quantity: menu.totalCount,
-          menuId: menuId ?? null, // menuId가 없으면 null로 유지
-        };
-      });
-      console.debug("[fetchUnpaidOrderByPlace] 선택된 메뉴:", selectedItems);
-      set({
-        orderId: data.orderId,
-        selectedItems,
-        placeId,
-        tableName: data.placeName,
-        storeId: data.storeId,
-        isLoading: false,
-      });
-    } else {
+          return {
+            menuName: menu.menuName,
+            price: menu.totalPrice / menu.totalCount,
+            quantity: menu.totalCount,
+            menuId: menuId ?? null, // menuId가 없으면 null로 유지
+          };
+        });
+        console.debug("[fetchUnpaidOrderByPlace] 선택된 메뉴:", selectedItems);
+        set({
+          orderId: data.orderId,
+          selectedItems,
+          placeId,
+          tableName: data.placeName, // 좌측 주문내역 클릭 시 daily 정보에서 placeName을 가져옴
+          storeId: data.storeId,
+          isLoading: false,
+        });
+      } else {
+        set({
+          orderId: null,
+          selectedItems: [],
+          placeId,
+          isLoading: false,
+        });
+      }
+    } catch (err) {
+      console.error("fetchUnpaidOrderByPlace 오류:", err);
       set({
         orderId: null,
         selectedItems: [],
@@ -230,19 +254,10 @@ export const usePosStore = create<PosState>((set, get) => ({
         isLoading: false,
       });
     }
-  } catch (err) {
-    console.error("fetchUnpaidOrderByPlace error:", err);
-    set({
-      orderId: null,
-      selectedItems: [],
-      placeId,
-      isLoading: false,
-    });
-  }
-},
+  },
 
-  // 캐시 무효화 액션 (특정 카테고리의 캐시 제거)
   invalidateMenuCache: (categoryId: number) => {
+    // 캐시 무효화 액션 (특정 카테고리의 캐시 제거)
     set((state) => {
       const newCache = { ...state.menuCache };
       delete newCache[categoryId];
@@ -251,15 +266,16 @@ export const usePosStore = create<PosState>((set, get) => ({
   },
 
   addItem: (menuName, price, menuId) => {
+    // 메뉴 아이템 추가
     if (menuId === undefined || menuId === null) {
       console.error("[addItem] 메뉴 ID가 누락되었습니다:", menuName);
       return; // menuId 없으면 저장하지 않음
     }
     console.debug("[addItem] 메뉴 추가:", { menuName, price, menuId });
-    const existingItem = get().selectedItems.find(item => item.menuId === menuId);
+    const existingItem = get().selectedItems.find((item) => item.menuId === menuId);
     if (existingItem) {
       set({
-        selectedItems: get().selectedItems.map(item =>
+        selectedItems: get().selectedItems.map((item) =>
           item.menuId === menuId ? { ...item, quantity: item.quantity + 1 } : item
         ),
       });
@@ -270,18 +286,18 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
 
-  
-
   removeItem: (menuName: string) => {
+    // 메뉴 아이템 제거
     const { selectedItems } = get();
     set({
       selectedItems: selectedItems.filter((item) => item.menuName !== menuName),
     });
   },
 
-  clearItems: () => set({ selectedItems: [] }),
+  clearItems: () => set({ selectedItems: [] }), // 선택된 아이템 전체 삭제
 
   resetData: () => {
+    // 모든 데이터 초기화
     set({
       tableName: null,
       placeId: null,
@@ -293,4 +309,23 @@ export const usePosStore = create<PosState>((set, get) => ({
       isLoading: false,
     });
   },
+}));
+
+// 새로운 스토어 생성
+export const useNewStore = create<NewStoreState>((set, get) => ({
+  newStoreId: null,
+  newTableName: null,
+  newSelectedItems: [],
+
+  setNewStoreId: (id:any) => set({ newStoreId: id }), // 새로운 매장 ID 설정
+  setNewTableName: (name:any) => set({ newTableName: name }), // 새로운 테이블 이름 설정
+
+  addNewItem: (item) => {
+    // 새로운 아이템 추가 (SelectedItem 타입 사용)
+    set((state) => ({
+      newSelectedItems: [...state.newSelectedItems, item],
+    }));
+  },
+
+  clearNewItems: () => set({ newSelectedItems: [] }), // 새로운 아이템 전체 삭제
 }));
