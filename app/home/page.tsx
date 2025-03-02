@@ -24,6 +24,8 @@ export default function HomePage() {
   const [enteredPassword, setEnteredPassword] = useState("");
   // 로그인 에러 메시지 상태 (비밀번호 틀렸을 때 사용)
   const [loginError, setLoginError] = useState("");
+  // 영업 개시 상태
+  const [showStartModal, setShowStartModal] = useState(false);
 
   // 토큰 확인 및 자동 로그아웃
   useEffect(() => {
@@ -103,9 +105,9 @@ export default function HomePage() {
         storeId: selectedStore.storeId,
         password: enteredPassword,
       });
-      // 로그인 성공 시 storeId를 localStorage에 저장
       localStorage.setItem("currentStoreId", selectedStore.storeId);
-      router.push("/pos");
+      setShowStoreModal(false);
+      setShowStartModal(true); // Show the start business modal instead of directly going to /pos
     } catch (error: any) {
       if (error.response?.status === 401) {
         setLoginError("비밀번호가 틀렸습니다.");
@@ -116,6 +118,20 @@ export default function HomePage() {
     }
   };
 
+  const handleStartBusiness = async () => {
+    if (!selectedStore) return;
+    try {
+      await axiosInstance.post(`/api/times/open/${selectedStore.storeId}`);
+      console.log("Store opened successfully");
+      setShowStartModal(false);
+      router.push("/pos");
+    } catch (error) {
+      console.error("Error opening store:", error);
+    }
+  };
+
+  const currentTime = new Date().toLocaleTimeString();
+  
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 relative">
       {/* 모든 스토어와 플러스 버튼을 한 행에 3개씩 그리드로 표시 */}
@@ -290,6 +306,46 @@ export default function HomePage() {
                 >
                   close
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Start Business Confirmation Modal */}
+      <AnimatePresence>
+        {showStartModal && (
+          <motion.div
+            className="fixed inset-0 flex items-center justify-center bg-transparent backdrop-blur-lg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <motion.div
+              className="relative w-[340px] h-[200px] rounded-lg shadow-lg border border-white/30 bg-white p-4"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="flex flex-col items-center justify-center h-full text-gray-800">
+                <span className="text-lg mb-2">현재 시간: {currentTime}</span>
+                <span className="text-md mb-4">영업을 시작하시겠습니까?</span>
+                <div className="flex space-x-4">
+                  <button
+                    onClick={handleStartBusiness}
+                    className="px-7 border border-gray-400 rounded hover:bg-gray-400 transition"
+                  >
+                    예
+                  </button>
+                  <button
+                    onClick={() => setShowStartModal(false)}
+                    className="px-7 border border-gray-400 rounded hover:bg-gray-400 transition"
+                  >
+                    아니오
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

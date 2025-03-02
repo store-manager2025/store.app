@@ -72,7 +72,9 @@ function SwipeableItem({ item, onDelete }: SwipeableItemProps) {
       >
         <span>
           {item.quantity} x {item.menuName}
-          {!item.menuId && <span className="text-red-500 text-sm"> (ID 없음)</span>}
+          {!item.menuId && (
+            <span className="text-red-500 text-sm"> (ID 없음)</span>
+          )}
         </span>
         <span>₩ {(item.price * item.quantity).toLocaleString()}</span>
       </div>
@@ -85,6 +87,7 @@ export default function SelectedMenuList() {
   const {
     storeId,
     placeId,
+    orderMenuId,
     selectedItems,
     removeItem,
     clearItems,
@@ -99,6 +102,33 @@ export default function SelectedMenuList() {
     (acc, item) => acc + item.price * item.quantity,
     0
   );
+
+  // orderId가 있을 때 주문 상세 정보를 가져오는 useEffect 추가
+  useEffect(() => {
+    const fetchOrderDetails = async () => {
+      if (orderId) {
+        try {
+          const { data } = await axiosInstance.get(
+            `/api/orders/detail/${orderId}`
+          );
+          const formattedItems = data.menuDetail.map((menu: any) => ({
+            menuName: menu.menuName,
+            price: menu.totalPrice / menu.totalCount,
+            quantity: menu.totalCount,
+            menuId: menu.orderMenuId ?? menu.id ?? null,
+          }));
+          console.log("formattedItems: ", formattedItems);
+
+          setSelectedItems(formattedItems);
+        } catch (error) {
+          console.error("주문 상세 조회 실패:", error);
+          alert("주문 상세 정보를 불러오는데 실패했습니다.");
+        }
+      }
+    };
+
+    fetchOrderDetails();
+  }, [orderId, setSelectedItems]);
 
   useEffect(() => {
     if (placeId && !orderId) {
@@ -152,24 +182,32 @@ export default function SelectedMenuList() {
       const serverItems = usePosStore.getState().selectedItems;
 
       // 클라이언트와 서버 데이터 비교
-      const clientMap = new Map(validItems.map((item) => [item.menuId, item.quantity]));
-      const serverMap = new Map(serverItems.map((item) => [item.menuId, item.quantity]));
+      const clientMap = new Map(
+        validItems.map((item) => [item.menuId, item.quantity])
+      );
+      const serverMap = new Map(
+        serverItems.map((item) => [item.menuId, item.quantity])
+      );
 
-      const itemsToAdd = validItems.filter((item) => {
-        const serverQty = serverMap.get(item.menuId) || 0;
-        return item.quantity > serverQty;
-      }).map((item) => ({
-        menuId: item.menuId,
-        quantity: item.quantity - (serverMap.get(item.menuId) || 0),
-      }));
+      const itemsToAdd = validItems
+        .filter((item) => {
+          const serverQty = serverMap.get(item.menuId) || 0;
+          return item.quantity > serverQty;
+        })
+        .map((item) => ({
+          menuId: item.menuId,
+          quantity: item.quantity - (serverMap.get(item.menuId) || 0),
+        }));
 
-      const itemsToRemove = serverItems.filter((item) => {
-        const clientQty = clientMap.get(item.menuId) || 0;
-        return clientQty < item.quantity;
-      }).map((item) => ({
-        menuId: item.menuId,
-        quantity: item.quantity - (clientMap.get(item.menuId) || 0),
-      }));
+      const itemsToRemove = serverItems
+        .filter((item) => {
+          const clientQty = clientMap.get(item.menuId) || 0;
+          return clientQty < item.quantity;
+        })
+        .map((item) => ({
+          menuId: item.menuId,
+          quantity: item.quantity - (clientMap.get(item.menuId) || 0),
+        }));
 
       if (itemsToAdd.length > 0) {
         const addRequest = { storeId, placeId, items: itemsToAdd };
@@ -185,8 +223,9 @@ export default function SelectedMenuList() {
 
       if (itemsToRemove.length > 0) {
         const refundData = itemsToRemove;
+
         try {
-          await axiosInstance.delete(`/api/orders/${orderId}`, {
+          await axiosInstance.delete(`/api/orders/${orderMenuId}`, {
             data: refundData,
             headers: { "Content-Type": "application/json" },
           });
@@ -212,19 +251,88 @@ export default function SelectedMenuList() {
     }
   };
 
-  const handleMenuDelete = (item: SelectedItem) => {
+  const handleMenuDelete = async (item: SelectedItem) => {
     if (!item.menuId) {
-      alert(`삭제할 메뉴의 ID가 누락되었습니다: ${item.menuName}.`);
+      alert(`삭제할 메뉴의 ID가 누락되었습니다: ${item.menuName}`);
       return;
     }
-    const updatedItems = selectedItems.map((i) => {
-      if (i.menuId === item.menuId) {
-        const newQuantity = i.quantity - item.quantity;
-        return newQuantity <= 0 ? null : { ...i, quantity: newQuantity };
+
+    if (!orderId) {
+      removeItem(item.menuName);
+      return;
+    }
+
+    try {
+      const { data } = await axiosInstance.get(`/api/orders/detail/${orderId}`);
+      const orderItem = data.menuDetail.find(
+        (menu: any) => menu.menuName === item.menuName
+      );
+      if (!orderItem || !orderItem.orderMenuId) {
+        alert(`서버에서 해당 주문 항목을 찾을 수 없습니다: ${item.menuName}`);
+        removeItem(item.menuName);
+        return;
       }
-      return i;
-    }).filter((i) => i !== null) as SelectedItem[];
-    setSelectedItems(updatedItems);
+
+      const orderMenuId = orderItem.orderMenuId;
+      const refundData = {
+        menuId: orderMenuId,
+        quantity: item.quantity,
+      };
+      console.debug("[handleMenuDelete] 삭제 요청 데이터:", refundData);
+      const response = await axiosInstance.delete(
+        `/api/orders/${orderMenuId}`,
+        {
+          data: refundData,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+      console.debug(`메뉴 ${item.menuName} 삭제 완료:`, response.data);
+
+      // 삭제 후 주문 상세를 다시 가져와 동기화
+      try {
+        const { data: updatedData } = await axiosInstance.get(
+          `/api/orders/detail/${orderId}`
+        );
+        const formattedItems = updatedData.menuDetail.map((menu: any) => ({
+          menuName: menu.menuName,
+          price: menu.totalPrice / menu.totalCount,
+          quantity: menu.totalCount,
+          menuId: menu.orderMenuId ?? menu.id ?? null,
+        }));
+        setSelectedItems(formattedItems);
+      } catch (fetchErr: any) {
+        if (fetchErr.response?.status === 404) {
+          // 주문이 완전히 삭제된 경우 상태 초기화
+          console.debug(
+            `주문 ${orderId}이 서버에서 사라졌습니다. 상태를 초기화합니다.`
+          );
+          setOrderId(null);
+          setSelectedItems([]);
+        } else {
+          throw fetchErr; // 기타 에러는 상위 catch로 전달
+        }
+      }
+    } catch (err: any) {
+      console.error("메뉴 삭제 실패:", err);
+      if (err.response?.status === 404) {
+        alert(
+          "해당 주문 항목을 서버에서 찾을 수 없습니다. 데이터가 이미 삭제되었을 수 있습니다."
+        );
+        removeItem(item.menuName);
+        // 주문 전체가 사라졌는지 확인
+        try {
+          await axiosInstance.get(`/api/orders/detail/${orderId}`);
+        } catch (checkErr: any) {
+          if (checkErr.response?.status === 404) {
+            setOrderId(null);
+            setSelectedItems([]);
+          }
+        }
+      } else {
+        alert("메뉴 삭제에 실패했습니다. 서버 오류가 발생했습니다.");
+      }
+      return;
+    }
   };
 
   const handlePaymentClick = async () => {
@@ -265,7 +373,11 @@ export default function SelectedMenuList() {
       </h1>
       <div className="flex-1 overflow-auto">
         {selectedItems.map((item, idx) => (
-          <SwipeableItem key={idx} item={item} onDelete={() => handleMenuDelete(item)} />
+          <SwipeableItem
+            key={idx}
+            item={item}
+            onDelete={() => handleMenuDelete(item)}
+          />
         ))}
       </div>
       <div className="mt-4 border-t-2 text-gray-700 font-bold p-4 pt-2 flex flex-col space-y-2">

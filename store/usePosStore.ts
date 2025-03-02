@@ -46,6 +46,7 @@ interface PosState {
 
   placeId: number | null;
   orderId: number | null;
+  orderMenuId: number | null;
 
   // 카테고리 목록 & 캐싱
   categories: Category[];
@@ -58,6 +59,7 @@ interface PosState {
 
   setPlaceId: (id: number | null) => void;
   setOrderId: (id: number | null) => void;
+  setorderMenuId: (id: number | null) => void;
 
   setStoreId: (id: number | null) => void;
   setTableName: (name: string | null) => void;
@@ -85,6 +87,7 @@ interface PosState {
 export const usePosStore = create<PosState>((set, get) => ({
   storeId: null,
   tableName: null,
+  orderMenuId:null,
 
   placeId: null,
   orderId: null,
@@ -101,6 +104,7 @@ export const usePosStore = create<PosState>((set, get) => ({
 
   setPlaceId: (id) => set({ placeId: id }),
   setOrderId: (id) => set({ orderId: id }),
+  setorderMenuId: (id) => set({ orderId: id }),
   setSelectedItems: (items) => set({ selectedItems: items }),
 
   fetchCategories: async (storeId: number) => {

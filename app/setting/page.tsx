@@ -10,6 +10,8 @@ import {
   PanelRightClose,
   ArrowRightLeft,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import axiosInstance from "../../lib/axiosInstance";
 
 export default function SettingPage() {
   const router = useRouter();
@@ -24,6 +26,8 @@ export default function SettingPage() {
   const [showEditUI, setShowEditUI] = useState(false);
   // Edit UI 페이드아웃 트리거
   const [fadeOutEditUI, setFadeOutEditUI] = useState(false);
+  // 영업 마감 상태
+  const [showCloseModal, setShowCloseModal] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
@@ -39,6 +43,22 @@ export default function SettingPage() {
       setStoreId(currentStoreId);
     }
   }, [router]);
+
+  const handleCloseClick = () => {
+    setShowCloseModal(true);
+  };
+
+  const handleCloseBusiness = async () => {
+    if (!storeId) return;
+    try {
+      await axiosInstance.post(`/api/times/close/${storeId}`);
+      console.log("Store closed successfully");
+      setShowCloseModal(false);
+      router.push("/home");
+    } catch (error) {
+      console.error("Error closing store:", error);
+    }
+  };
 
   /**
    * Items 버튼 클릭 => 메인 UI를 페이드아웃 -> 제거 -> Edit UI를 페이드인
@@ -154,6 +174,7 @@ export default function SettingPage() {
                 Settings
               </button>
               <button
+                onClick={handleCloseClick}
                 className="w-80 h-20 font-bold text-left flex flex-row items-center bg-transparent text-gray-700 border border-gray-500 hover:text-white hover:bg-[#333] rounded-lg shadow-sm"
               >
                 <PanelRightClose className="w-6 h-6 mr-2 ml-10" />
@@ -190,6 +211,45 @@ export default function SettingPage() {
             </div>
           </div>
         )}
+
+        {/* Close Business Confirmation Modal */}
+        <AnimatePresence>
+          {showCloseModal && (
+            <motion.div
+              className="fixed inset-0 flex items-center justify-center bg-transparent backdrop-blur-lg"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <motion.div
+                className="relative w-[340px] h-[200px] rounded-lg shadow-lg border border-white/30 bg-white p-4"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                <div className="flex flex-col items-center justify-center h-full text-gray-800">
+                  <span className="text-md mb-4">영업을 마감하시겠습니까?</span>
+                  <div className="flex space-x-4">
+                    <button
+                      onClick={handleCloseBusiness}
+                      className="px-7 border border-gray-400 rounded hover:bg-gray-400 transition"
+                    >
+                      예
+                    </button>
+                    <button
+                      onClick={() => setShowCloseModal(false)}
+                      className="px-7 border border-gray-400 rounded hover:bg-gray-400 transition"
+                    >
+                      아니오
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
