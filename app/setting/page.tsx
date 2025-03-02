@@ -12,10 +12,11 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import axiosInstance from "../../lib/axiosInstance";
+import { useFormStore } from "@/store/formStore";
 
 export default function SettingPage() {
   const router = useRouter();
-  const [storeId, setStoreId] = useState<string | null>(null);
+  const { storeId, setStoreId } = useFormStore(); 
 
   // 메인 UI (Heading + 6개 버튼) 표시 여부
   const [showMainUI, setShowMainUI] = useState(true);
@@ -30,19 +31,19 @@ export default function SettingPage() {
   const [showCloseModal, setShowCloseModal] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    if (!token) {
-      alert("세션이 만료되었습니다. 다시 로그인해주세요.");
-      router.push("/");
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("accessToken");
+      const currentStoreId = localStorage.getItem("currentStoreId");
+
+      if (!token || !currentStoreId) {
+        alert("세션이 만료되었습니다. 다시 로그인해주세요.");
+        router.push("/");
+      } else {
+        // 문자로 저장되어 있으므로 number 변환
+        setStoreId(Number(currentStoreId));
+      }
     }
-    const currentStoreId = localStorage.getItem("currentStoreId");
-    if (!currentStoreId) {
-      alert("Store ID가 존재하지 않습니다. 다시 로그인해주세요.");
-      router.push("/");
-    } else {
-      setStoreId(currentStoreId);
-    }
-  }, [router]);
+  }, [router, setStoreId]);
 
   const handleCloseClick = () => {
     setShowCloseModal(true);
@@ -74,6 +75,10 @@ export default function SettingPage() {
       setShowEditUI(true);
     }, 400);
   };
+
+  const handleOrdersClick = () => {
+    router.push("setting/orders");
+  }
 
   /**
    * 뒤로가기(상단 화살표) 클릭 시 동작
@@ -140,6 +145,7 @@ export default function SettingPage() {
             {/* 6개 버튼 */}
             <div className="grid grid-cols-3 gap-8 w-full relative">
               <button
+              onClick={handleOrdersClick}
                 className="w-80 h-20 font-bold text-left flex flex-row items-center bg-transparent text-gray-700 border border-gray-500 hover:text-white hover:bg-[#333] rounded-lg shadow-sm"
               >
                 <ShoppingBag className="w-6 h-6 mr-2 ml-10" />
