@@ -94,6 +94,7 @@ export default function SelectedMenuList() {
     orderId,
     setOrderId,
     setPlaceId,
+    setTableName,
     fetchUnpaidOrderByPlace,
     setSelectedItems,
   } = usePosStore();
@@ -130,6 +131,7 @@ export default function SelectedMenuList() {
     fetchOrderDetails();
   }, [orderId, setSelectedItems]);
 
+  // placeId 변경 시 orderId가 없으면 아이템 초기화
   useEffect(() => {
     if (placeId && !orderId) {
       clearItems();
@@ -165,30 +167,33 @@ export default function SelectedMenuList() {
     }
   };
 
+  // 주문 버튼 클릭 함수
   const handleOrderClick = async () => {
     if (!storeId || !placeId || selectedItems.length === 0) {
       alert("메뉴를 선택해주세요.");
       return;
     }
+  
     const validItems = selectedItems.filter((item) => item.menuId != null);
     if (validItems.length === 0) {
       alert("유효한 메뉴 항목이 없습니다.");
       return;
     }
-
-    if (orderId) {
-      // 서버 데이터 가져오기
-      await fetchUnpaidOrderByPlace(placeId);
+  
+    // 1) placeId로 '미결제' 주문이 있는지 확인
+    await fetchUnpaidOrderByPlace(placeId);
+    const realOrderId = usePosStore.getState().orderId;
+  
+    if (realOrderId) {
+      // 이미 존재하는 주문(추가주문)
       const serverItems = usePosStore.getState().selectedItems;
-
-      // 클라이언트와 서버 데이터 비교
       const clientMap = new Map(
         validItems.map((item) => [item.menuId, item.quantity])
       );
       const serverMap = new Map(
         serverItems.map((item) => [item.menuId, item.quantity])
       );
-
+  
       const itemsToAdd = validItems
         .filter((item) => {
           const serverQty = serverMap.get(item.menuId) || 0;
@@ -198,7 +203,7 @@ export default function SelectedMenuList() {
           menuId: item.menuId,
           quantity: item.quantity - (serverMap.get(item.menuId) || 0),
         }));
-
+  
       const itemsToRemove = serverItems
         .filter((item) => {
           const clientQty = clientMap.get(item.menuId) || 0;
@@ -208,11 +213,12 @@ export default function SelectedMenuList() {
           menuId: item.menuId,
           quantity: item.quantity - (clientMap.get(item.menuId) || 0),
         }));
-
+  
+      // 추가 주문
       if (itemsToAdd.length > 0) {
         const addRequest = { storeId, placeId, items: itemsToAdd };
         try {
-          await axiosInstance.post(`/api/orders/add/${orderId}`, addRequest);
+          await axiosInstance.post(`/api/orders/add/${realOrderId}`, addRequest);
           await fetchUnpaidOrderByPlace(placeId);
           alert("추가 주문이 완료되었습니다.");
         } catch (error) {
@@ -220,10 +226,10 @@ export default function SelectedMenuList() {
           alert("추가 주문에 실패했습니다.");
         }
       }
-
+  
+      // 삭제(환불) 처리
       if (itemsToRemove.length > 0) {
         const refundData = itemsToRemove;
-
         try {
           await axiosInstance.delete(`/api/orders/${orderMenuId}`, {
             data: refundData,
@@ -236,17 +242,26 @@ export default function SelectedMenuList() {
           alert("삭제 요청이 실패했습니다. 서버 상태를 확인해주세요.");
         }
       }
-
+  
       if (itemsToAdd.length === 0 && itemsToRemove.length === 0) {
         alert("변경 사항이 없습니다.");
       }
+  
       clearItems();
     } else {
+      // ----------------------------------------------
+      // 새 주문 생성 분기
+      // ----------------------------------------------
       const newOrderId = await createOrder();
       if (newOrderId) {
-        setOrderId(newOrderId);
-        clearItems();
+        // 주문 생성 후 안내
         alert("주문이 완료되었습니다.");
+
+        // [변경] 주문 생성 직후 placeId, orderId, tableName 등 초기화
+        setOrderId(null);      
+        setPlaceId(null);      
+        setTableName("");      
+        clearItems();         
       }
     }
   };
