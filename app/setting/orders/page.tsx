@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import CalculatorModal from "../../../components/CalculatorModal";
 import { Archive, Search } from "lucide-react";
 
-// Order 타입 등은 기존과 동일
 interface Order {
   orderId: number;
   totalPrice: number;
@@ -33,9 +32,6 @@ interface OrderGroup {
 export default function OrderPage() {
   const router = useRouter();
 
-  // ────────────────────────────── 수정 부분 ──────────────────────────────
-  // 기존에 setStoreId(16)로 강제 초기화하던 로직 제거
-  // storeId, placeId는 useFormStore에서 꺼내 쓰기만 함
   const {
     storeId,
     placeId,
@@ -46,20 +42,20 @@ export default function OrderPage() {
     setDailyOrders,
     setCalculatorModalOpen,
   } = useFormStore();
-  // ───────────────────────────────────────────────────────────────────────
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [placeName, setPlaceName] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // storeId가 세팅되어 있으면 주문 내역을 가져옴
+  // 주문 내역 가져오기
   useEffect(() => {
     if (storeId) {
       const fetchOrders = async () => {
         try {
           const response = await axiosInstance.get(`/api/reports/all/${storeId}`);
-          setOrders(response.data);
+          console.debug("Fetched orders:", response.data); // 디버깅 로그 추가
+          setOrders(response.data || []); // 응답이 없으면 빈 배열 설정
           setLoading(false);
         } catch (err) {
           setError("주문 내역을 불러오지 못했습니다.");
@@ -70,13 +66,13 @@ export default function OrderPage() {
     }
   }, [storeId]);
 
-  // placeId가 세팅되어 있으면 좌석 이름을 가져옴
+  // 좌석 이름 가져오기
   useEffect(() => {
     if (placeId) {
       const fetchPlaceName = async () => {
         try {
           const response = await axiosInstance.get(`/api/places/${placeId}`);
-          setPlaceName(response.data.placeName);
+          setPlaceName(response.data.placeName || "Unknown");
         } catch (err) {
           console.error("좌석 이름을 불러오지 못했습니다.", err);
         }
@@ -89,7 +85,10 @@ export default function OrderPage() {
   const groupOrdersByDate = (orders: Order[]): OrderGroup[] => {
     const groups: { [key: string]: Order[] } = {};
     orders.forEach((order) => {
-      const date = order.orderedAt.split("T")[0];
+      // orderedAt가 유효한지 확인
+      const date = order.orderedAt && typeof order.orderedAt === "string"
+        ? order.orderedAt.split("T")[0]
+        : "Unknown Date"; // 기본값 설정
       if (!groups[date]) {
         groups[date] = [];
       }
@@ -100,7 +99,7 @@ export default function OrderPage() {
         date,
         orders: groups[date].sort(
           (a, b) =>
-            new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime()
+            new Date(b.orderedAt || "0").getTime() - new Date(a.orderedAt || "0").getTime()
         ),
       }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -119,14 +118,14 @@ export default function OrderPage() {
 
   const sortedGroups = groupOrdersByDate(orders);
 
-  // 일일 리포트(주문 상세) 가져오기
+  // 일일 리포트 가져오기
   const fetchDailyReports = async (date: string) => {
     if (!dailyOrders[date] && storeId) {
       try {
         const response = await axiosInstance.get(`/api/reports/daily`, {
           params: { storeId, date },
         });
-        setDailyOrders(date, response.data);
+        setDailyOrders(date, response.data || []);
       } catch (err) {
         console.error("일일 주문 내역을 불러오지 못했습니다.", err);
       }
@@ -134,7 +133,9 @@ export default function OrderPage() {
   };
 
   const handleOrderClick = (order: Order) => {
-    const date = order.orderedAt.split("T")[0];
+    const date = order.orderedAt && typeof order.orderedAt === "string"
+      ? order.orderedAt.split("T")[0]
+      : "Unknown Date";
     setSelectedOrder(order.orderId, date);
     fetchDailyReports(date);
   };
@@ -179,10 +180,12 @@ export default function OrderPage() {
                     >
                       <span>₩{order.totalPrice.toLocaleString()}</span>
                       <span>
-                        {new Date(order.orderedAt).toLocaleTimeString("ko-KR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {order.orderedAt && typeof order.orderedAt === "string"
+                          ? new Date(order.orderedAt).toLocaleTimeString("ko-KR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "시간 정보 없음"}
                       </span>
                     </div>
                   ))}
@@ -206,13 +209,13 @@ export default function OrderPage() {
                 </p>
                 <p>
                   <strong>상태:</strong>{" "}
-                  {selectedOrder.orderStatus === "SUCCESS"
-                    ? "결제 완료"
-                    : "결제 취소"}
+                  {selectedOrder.orderStatus === "SUCCESS" ? "결제 완료" : "결제 취소"}
                 </p>
                 <p>
                   <strong>주문 시간:</strong>{" "}
-                  {new Date(selectedOrder.orderedAt).toLocaleString("ko-KR")}
+                  {selectedOrder.orderedAt
+                    ? new Date(selectedOrder.orderedAt).toLocaleString("ko-KR")
+                    : "시간 정보 없음"}
                 </p>
                 <p>
                   <strong>좌석:</strong> {selectedOrder.placeName}
@@ -224,8 +227,7 @@ export default function OrderPage() {
                       <p>
                         {menu.menuName} x {menu.totalCount} - ₩
                         {menu.totalPrice.toLocaleString()}
-                        {menu.discountRate > 0 &&
-                          ` (${menu.discountRate}% 할인)`}
+                        {menu.discountRate > 0 && ` (${menu.discountRate}% 할인)`}
                       </p>
                     </div>
                   ))}
@@ -273,7 +275,6 @@ export default function OrderPage() {
               </div>
             </div>
           </div>
-
           <div className="flex flex-row justify-center items-center gap-2 my-6">
             <button
               className="bg-gray-200 rounded py-6 w-[9rem] hover:bg-gray-300"
