@@ -282,11 +282,11 @@ export default function HomePage() {
                     <button
                       key={index}
                       onClick={handleClick}
-                      style={{
-                        clipPath:
-                          "polygon(20% 0%,80% 0%,100% 50%,80% 100%,20% 100%,0% 50%)",
-                      }}
-                      className="flex items-center justify-center h-12 bg-[#f5f5f5] rounded-full hover:bg-gray-200 transition"
+                      // style={{
+                      //   clipPath:
+                      //     "polygon(20% 0%,80% 0%,100% 50%,80% 100%,20% 100%,0% 50%)",
+                      // }}
+                      className="flex items-center justify-center h-12 bg-[#f5f5f5] rounded hover:bg-gray-200 transition"
                     >
                       {key}
                     </button>
@@ -295,14 +295,14 @@ export default function HomePage() {
               </div>
 
               {/* 모달 하단 50px 푸터 */}
-              <div className="h-[50px] mt-2 flex items-center justify-center mb-2">
+              <div className="h-[45px] mt-2 flex items-center justify-center mb-2">
                 <button
                   onClick={() => {
                     setShowStoreModal(false);
                     setEnteredPassword("");
                     setLoginError("");
                   }}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="text-gray-500 hover:text-gray-700 w-full py-2 shadow-sm"
                 >
                   close
                 </button>
