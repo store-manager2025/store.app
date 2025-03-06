@@ -104,30 +104,34 @@ export default function SelectedMenuList() {
     0
   );
 
-  // orderId가 있을 때 주문 상세 정보를 가져오는 useEffect 추가
   useEffect(() => {
     const fetchOrderDetails = async () => {
       if (orderId) {
         try {
-          const { data } = await axiosInstance.get(
-            `/api/orders/detail/${orderId}`
-          );
-          const formattedItems = data.menuDetail.map((menu: any) => ({
-            menuName: menu.menuName,
-            price: menu.totalPrice / menu.totalCount,
-            quantity: menu.totalCount,
-            menuId: menu.orderMenuId ?? menu.id ?? null,
-          }));
+          const { data } = await axiosInstance.get(`/api/orders/detail/${orderId}`);
+          const allMenus = Object.values(usePosStore.getState().menuCache).flat();
+          const formattedItems = data.menuDetail.map((menu: any) => {
+            const cachedMenu = allMenus.find((m) => m.menuName === menu.menuName);
+            if (!cachedMenu) {
+              console.warn(`[fetchOrderDetails] menuCache에서 ${menu.menuName}의 menuId를 찾을 수 없습니다.`);
+            }
+            return {
+              menuName: menu.menuName,
+              price: menu.totalPrice / menu.totalCount,
+              quantity: menu.totalCount,
+              menuId: cachedMenu ? cachedMenu.menuId : null, // menuCache에서 올바른 menuId 매핑
+              orderMenuId: menu.id || null, // orderMenuId는 별도로 저장
+            };
+          });
           console.log("formattedItems: ", formattedItems);
-
-          setSelectedItems(formattedItems);
+          // setSelectedItems(formattedItems);
         } catch (error) {
           console.error("주문 상세 조회 실패:", error);
           alert("주문 상세 정보를 불러오는데 실패했습니다.");
         }
       }
     };
-
+  
     fetchOrderDetails();
   }, [orderId, setSelectedItems]);
 
@@ -158,8 +162,10 @@ export default function SelectedMenuList() {
     };
     try {
       await axiosInstance.post("/api/orders", orderRequest);
-      await fetchUnpaidOrderByPlace(placeId);
-      return usePosStore.getState().orderId;
+      await fetchUnpaidOrderByPlace(placeId); // 주문 생성 후 최신 데이터 가져오기
+      const newOrderId = usePosStore.getState().orderId;
+      clearItems(); // 주문 생성 후 selectedItems 초기화
+      return newOrderId;
     } catch (error) {
       console.error("주문 생성 실패:", error);
       alert("주문 생성 중 오류가 발생했습니다.");
@@ -167,7 +173,6 @@ export default function SelectedMenuList() {
     }
   };
 
-  // 주문 버튼 클릭 함수
   const handleOrderClick = async () => {
     if (!storeId || !placeId || selectedItems.length === 0) {
       alert("메뉴를 선택해주세요.");
@@ -180,90 +185,103 @@ export default function SelectedMenuList() {
       return;
     }
   
-    // 1) placeId로 '미결제' 주문이 있는지 확인
+    // 1) placeId로 미결제 주문이 있는지 새로 조회
     await fetchUnpaidOrderByPlace(placeId);
-    const realOrderId = usePosStore.getState().orderId;
+    let realOrderId = usePosStore.getState().orderId;
   
-    if (realOrderId) {
-      // 이미 존재하는 주문(추가주문)
-      const serverItems = usePosStore.getState().selectedItems;
-      const clientMap = new Map(
-        validItems.map((item) => [item.menuId, item.quantity])
-      );
-      const serverMap = new Map(
-        serverItems.map((item) => [item.menuId, item.quantity])
-      );
+    // 2) 만약 realOrderId가 없으면 새 주문 생성
+    if (!realOrderId) {
+      realOrderId = await createOrder();
+      if (!realOrderId) return;
+      alert("주문이 완료되었습니다.");
+      // 상태 초기화 및 UI 반영 보장
+      setOrderId(null);
+      setPlaceId(null);
+      setTableName("");
+      clearItems(); // 추가 호출로 확실히 초기화
+      console.debug("[handleOrderClick] 주문 완료 후 selectedItems:", usePosStore.getState().selectedItems);
+      return;
+    }
   
-      const itemsToAdd = validItems
-        .filter((item) => {
-          const serverQty = serverMap.get(item.menuId) || 0;
-          return item.quantity > serverQty;
-        })
-        .map((item) => ({
-          menuId: item.menuId,
-          quantity: item.quantity - (serverMap.get(item.menuId) || 0),
-        }));
+    // 3) 이미 존재하는 주문인 경우 (추가 주문)
+    const serverItems = usePosStore.getState().selectedItems;
+    const clientMap = new Map(validItems.map((item) => [item.menuId, item.quantity]));
+    const serverMap = new Map(serverItems.map((item) => [item.menuId, item.quantity]));
   
-      const itemsToRemove = serverItems
-        .filter((item) => {
-          const clientQty = clientMap.get(item.menuId) || 0;
-          return clientQty < item.quantity;
-        })
-        .map((item) => ({
-          menuId: item.menuId,
-          quantity: item.quantity - (clientMap.get(item.menuId) || 0),
-        }));
+    const itemsToAdd = validItems
+      .filter((item) => {
+        const serverQty = serverMap.get(item.menuId) || 0;
+        return item.quantity > serverQty;
+      })
+      .map((item) => ({
+        menuId: item.menuId,
+        quantity: item.quantity - (serverMap.get(item.menuId) || 0),
+      }));
   
-      // 추가 주문
-      if (itemsToAdd.length > 0) {
-        const addRequest = { storeId, placeId, items: itemsToAdd };
-        try {
-          await axiosInstance.post(`/api/orders/add/${realOrderId}`, addRequest);
-          await fetchUnpaidOrderByPlace(placeId);
-          alert("추가 주문이 완료되었습니다.");
-        } catch (error) {
+    const itemsToRemove = serverItems
+      .filter((item) => {
+        const clientQty = clientMap.get(item.menuId) || 0;
+        return clientQty < item.quantity && item.orderMenuId;
+      })
+      .map((item) => ({
+        orderMenuId: item.orderMenuId!,
+        menuId: item.menuId,
+        quantity: item.quantity - (clientMap.get(item.menuId) || 0),
+      }));
+  
+    // 4) 추가 주문 요청
+    if (itemsToAdd.length > 0) {
+      const addRequest = { storeId, placeId, items: itemsToAdd };
+      console.debug("[handleOrderClick] 추가 주문 요청:", addRequest);
+      try {
+        await axiosInstance.post(`/api/orders/add/${realOrderId}`, addRequest);
+        await fetchUnpaidOrderByPlace(placeId);
+        alert("추가 주문이 완료되었습니다.");
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          setOrderId(null);
+          const newOrderId = await createOrder();
+          if (newOrderId) {
+            alert("주문이 완료되었습니다.");
+            setOrderId(null);
+            setPlaceId(null);
+            setTableName("");
+            clearItems();
+            return;
+          }
+        } else {
           console.error("추가 주문 실패:", error);
           alert("추가 주문에 실패했습니다.");
         }
       }
+    }
   
-      // 삭제(환불) 처리
-      if (itemsToRemove.length > 0) {
-        const refundData = itemsToRemove;
-        try {
-          await axiosInstance.delete(`/api/orders/${orderMenuId}`, {
+    // 5) 삭제(환불) 처리
+    if (itemsToRemove.length > 0) {
+      try {
+        for (const item of itemsToRemove) {
+          const refundData = { menuId: item.menuId, quantity: item.quantity };
+          console.debug("[handleOrderClick] 삭제 요청:", { orderMenuId: item.orderMenuId, refundData });
+          await axiosInstance.delete(`/api/orders/${item.orderMenuId}`, {
             data: refundData,
             headers: { "Content-Type": "application/json" },
           });
-          await fetchUnpaidOrderByPlace(placeId);
-          alert("삭제가 반영되었습니다.");
-        } catch (error) {
-          console.error("삭제 요청 실패:", error);
-          alert("삭제 요청이 실패했습니다. 서버 상태를 확인해주세요.");
         }
-      }
-  
-      if (itemsToAdd.length === 0 && itemsToRemove.length === 0) {
-        alert("변경 사항이 없습니다.");
-      }
-  
-      clearItems();
-    } else {
-      // ----------------------------------------------
-      // 새 주문 생성 분기
-      // ----------------------------------------------
-      const newOrderId = await createOrder();
-      if (newOrderId) {
-        // 주문 생성 후 안내
-        alert("주문이 완료되었습니다.");
-
-        // [변경] 주문 생성 직후 placeId, orderId, tableName 등 초기화
-        setOrderId(null);      
-        setPlaceId(null);      
-        setTableName("");      
-        clearItems();         
+        await fetchUnpaidOrderByPlace(placeId);
+        alert("삭제가 반영되었습니다.");
+      } catch (error) {
+        console.error("삭제 요청 실패:", error);
+        alert("삭제 요청이 실패했습니다. 서버 상태를 확인해주세요.");
       }
     }
+  
+    if (itemsToAdd.length === 0 && itemsToRemove.length === 0) {
+      alert("변경 사항이 없습니다.");
+    }
+  
+    // 6) 모든 경우에 대해 selectedItems 초기화
+    clearItems();
+console.debug("[handleOrderClick] selectedItems 초기화 후:", usePosStore.getState().selectedItems);
   };
 
   const handleMenuDelete = async (item: SelectedItem) => {
@@ -271,12 +289,12 @@ export default function SelectedMenuList() {
       alert(`삭제할 메뉴의 ID가 누락되었습니다: ${item.menuName}`);
       return;
     }
-
+  
     if (!orderId) {
       removeItem(item.menuName);
       return;
     }
-
+  
     try {
       const { data } = await axiosInstance.get(`/api/orders/detail/${orderId}`);
       const orderItem = data.menuDetail.find(
@@ -287,10 +305,10 @@ export default function SelectedMenuList() {
         removeItem(item.menuName);
         return;
       }
-
+  
       const orderMenuId = orderItem.orderMenuId;
       const refundData = {
-        menuId: orderMenuId,
+        menuId: orderItem.menuId, // menuId 사용
         quantity: item.quantity,
       };
       console.debug("[handleMenuDelete] 삭제 요청 데이터:", refundData);
@@ -302,39 +320,22 @@ export default function SelectedMenuList() {
         }
       );
       console.debug(`메뉴 ${item.menuName} 삭제 완료:`, response.data);
-
-      // 삭제 후 주문 상세를 다시 가져와 동기화
-      try {
-        const { data: updatedData } = await axiosInstance.get(
-          `/api/orders/detail/${orderId}`
-        );
-        const formattedItems = updatedData.menuDetail.map((menu: any) => ({
-          menuName: menu.menuName,
-          price: menu.totalPrice / menu.totalCount,
-          quantity: menu.totalCount,
-          menuId: menu.orderMenuId ?? menu.id ?? null,
-        }));
-        setSelectedItems(formattedItems);
-      } catch (fetchErr: any) {
-        if (fetchErr.response?.status === 404) {
-          // 주문이 완전히 삭제된 경우 상태 초기화
-          console.debug(
-            `주문 ${orderId}이 서버에서 사라졌습니다. 상태를 초기화합니다.`
-          );
-          setOrderId(null);
-          setSelectedItems([]);
-        } else {
-          throw fetchErr; // 기타 에러는 상위 catch로 전달
-        }
-      }
+  
+      const { data: updatedData } = await axiosInstance.get(
+        `/api/orders/detail/${orderId}`
+      );
+      const formattedItems = updatedData.menuDetail.map((menu: any) => ({
+        menuName: menu.menuName,
+        price: menu.totalPrice / menu.totalCount,
+        quantity: menu.totalCount,
+        menuId: menu.menuId, // menuId로 수정
+      }));
+      setSelectedItems(formattedItems);
     } catch (err: any) {
       console.error("메뉴 삭제 실패:", err);
       if (err.response?.status === 404) {
-        alert(
-          "해당 주문 항목을 서버에서 찾을 수 없습니다. 데이터가 이미 삭제되었을 수 있습니다."
-        );
+        alert("해당 주문 항목을 서버에서 찾을 수 없습니다. 데이터가 이미 삭제되었을 수 있습니다.");
         removeItem(item.menuName);
-        // 주문 전체가 사라졌는지 확인
         try {
           await axiosInstance.get(`/api/orders/detail/${orderId}`);
         } catch (checkErr: any) {
@@ -346,7 +347,6 @@ export default function SelectedMenuList() {
       } else {
         alert("메뉴 삭제에 실패했습니다. 서버 오류가 발생했습니다.");
       }
-      return;
     }
   };
 
