@@ -42,6 +42,7 @@ export interface SelectedItem {
   price: number;
   quantity: number;
   menuId: number;
+  orderMenuId?: number | null; // 추가: 주문 내 메뉴 항목 ID
 }
 
 // POS 상태 인터페이스 정의
@@ -127,7 +128,9 @@ export const usePosStore = create<PosState>((set, get) => ({
     // 카테고리 목록을 비동기적으로 가져옴
     set({ isLoading: true });
     try {
-      const { data } = await axiosInstance.get(`/api/categories/all/${storeId}`);
+      const { data } = await axiosInstance.get(
+        `/api/categories/all/${storeId}`
+      );
       set({ categories: data, isLoading: false });
     } catch (err) {
       console.error("fetchCategories 오류:", err);
@@ -203,29 +206,24 @@ export const usePosStore = create<PosState>((set, get) => ({
   },
 
   fetchUnpaidOrderByPlace: async (placeId: number) => {
-    // 미결제 주문을 장소 ID로 가져옴
     set({ isLoading: true });
     try {
       const { data } = await axiosInstance.get(`/api/orders/places/${placeId}`);
       if (data && data.orderStatus === "UNPAID") {
+        const allMenus = Object.values(get().menuCache).flat(); // 모든 카테고리의 메뉴를 평탄화
         const selectedItems = data.menuDetail.map((menu: any) => {
-          let menuId = menu.menuId ?? menu.id ?? null;
-          if (menuId == null) {
-            // menuCache에서 모든 메뉴를 검색
-            const allMenus = Object.values(get().menuCache).flat();
-            const found = allMenus.find((m) => m.menuName === menu.menuName);
-            if (found) {
-              menuId = found.menuId;
-              console.debug(`[fetchUnpaidOrderByPlace] Found menuId ${menuId} for ${menu.menuName} in menuCache`);
-            } else {
-              console.warn(`[fetchUnpaidOrderByPlace] Menu ID not found for ${menu.menuName} in menuCache`);
-            }
+          const cachedMenu = allMenus.find((m) => m.menuName === menu.menuName);
+          if (!cachedMenu) {
+            console.warn(
+              `[fetchUnpaidOrderByPlace] menuCache에서 ${menu.menuName}의 menuId를 찾을 수 없습니다.`
+            );
           }
           return {
             menuName: menu.menuName,
             price: menu.totalPrice / menu.totalCount,
             quantity: menu.totalCount,
-            menuId: menuId ?? null, // menuId가 없으면 null로 유지
+            menuId: cachedMenu ? cachedMenu.menuId : null, // menuCache에서 menuId 매핑
+            orderMenuId: menu.id || null, // orderMenuId가 있다면 사용 (삭제용)
           };
         });
         console.debug("[fetchUnpaidOrderByPlace] 선택된 메뉴:", selectedItems);
@@ -233,7 +231,7 @@ export const usePosStore = create<PosState>((set, get) => ({
           orderId: data.orderId,
           selectedItems,
           placeId,
-          tableName: data.placeName, // 좌측 주문내역 클릭 시 daily 정보에서 placeName을 가져옴
+          tableName: data.placeName,
           storeId: data.storeId,
           isLoading: false,
         });
@@ -245,14 +243,23 @@ export const usePosStore = create<PosState>((set, get) => ({
           isLoading: false,
         });
       }
-    } catch (err) {
-      console.error("fetchUnpaidOrderByPlace 오류:", err);
-      set({
-        orderId: null,
-        selectedItems: [],
-        placeId,
-        isLoading: false,
-      });
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        set({
+          orderId: null,
+          selectedItems: [], // 404 오류 시 명시적 초기화
+          placeId,
+          isLoading: false,
+        });
+      } else {
+        console.error("fetchUnpaidOrderByPlace 오류:", err);
+        set({
+          orderId: null,
+          selectedItems: [],
+          placeId,
+          isLoading: false,
+        });
+      }
     }
   },
 
@@ -272,16 +279,23 @@ export const usePosStore = create<PosState>((set, get) => ({
       return; // menuId 없으면 저장하지 않음
     }
     console.debug("[addItem] 메뉴 추가:", { menuName, price, menuId });
-    const existingItem = get().selectedItems.find((item) => item.menuId === menuId);
+    const existingItem = get().selectedItems.find(
+      (item) => item.menuId === menuId
+    );
     if (existingItem) {
       set({
         selectedItems: get().selectedItems.map((item) =>
-          item.menuId === menuId ? { ...item, quantity: item.quantity + 1 } : item
+          item.menuId === menuId
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
         ),
       });
     } else {
       set({
-        selectedItems: [...get().selectedItems, { menuName, price, quantity: 1, menuId }],
+        selectedItems: [
+          ...get().selectedItems,
+          { menuName, price, quantity: 1, menuId },
+        ],
       });
     }
   },
@@ -317,8 +331,8 @@ export const useNewStore = create<NewStoreState>((set, get) => ({
   newTableName: null,
   newSelectedItems: [],
 
-  setNewStoreId: (id:any) => set({ newStoreId: id }), // 새로운 매장 ID 설정
-  setNewTableName: (name:any) => set({ newTableName: name }), // 새로운 테이블 이름 설정
+  setNewStoreId: (id: any) => set({ newStoreId: id }), // 새로운 매장 ID 설정
+  setNewTableName: (name: any) => set({ newTableName: name }), // 새로운 테이블 이름 설정
 
   addNewItem: (item) => {
     // 새로운 아이템 추가 (SelectedItem 타입 사용)

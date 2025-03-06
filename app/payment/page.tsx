@@ -33,22 +33,27 @@ export default function PaymentPage() {
   const placeId = searchParams.get("placeId");
   const isNewOrderParam = searchParams.get("isNewOrder");
 
-  // storeId 추가 (백엔드가 DB에 저장할 때 사용)
   const { storeId, resetData, fetchUnpaidOrderByPlace } = usePosStore();
 
+  // 상태 관리
   const [totalAmount, setTotalAmount] = useState(0);
   const [prevTotalAmount, setPrevTotalAmount] = useState(totalAmount);
   const [charge, setCharge] = useState(0);
   const [splitAmount, setSplitAmount] = useState(0);
   const [isSplitVisible, setIsSplitVisible] = useState(false);
   const [isOtherClicked, setIsOtherClicked] = useState(false);
+  // 기존 신용카드 결제 모달 (필요 시 활용)
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  // 새로 추가된 영수증 출력 여부 모달
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [latestPaymentId, setLatestPaymentId] = useState<number | null>(null);
 
   const initialTotal = selectedItems.reduce(
     (acc: number, item: Item) => acc + item.price * item.quantity,
     0
   );
 
+  // 총액 계산
   useEffect(() => {
     setTotalAmount(initialTotal);
   }, [initialTotal]);
@@ -102,6 +107,7 @@ export default function PaymentPage() {
     }
   };
 
+  // 결제 완료 후, 즉시 /payment-completed로 이동하지 않고 영수증 출력 여부 모달 띄움
   const handleDoneClick = async () => {
     if (charge + splitAmount >= initialTotal && initialTotal > 0) {
       try {
@@ -117,7 +123,7 @@ export default function PaymentPage() {
             return;
           }
         }
-  
+
         const payList = [];
         if (charge > 0) {
           payList.push({
@@ -137,8 +143,7 @@ export default function PaymentPage() {
             expiryDate: "2030/12",
           });
         }
-  
-        // paymentData에 storeId(camelCase)를 그대로 포함시킴
+
         const paymentData = {
           orderId: orderId ? parseInt(orderId) : null,
           placeId: placeId ? parseInt(placeId) : null,
@@ -147,23 +152,31 @@ export default function PaymentPage() {
           discountAmount: 0,
           payList,
         };
-  
+
         console.debug(
           "Sending payment request:",
           JSON.stringify(paymentData, null, 2)
         );
-  
-        // 이 요청만은 키 변환을 하지 않고 보내도록 transformRequest를 재정의
-        const response = await axiosInstance.post("/api/pay", paymentData, {
-          transformRequest: [(data, headers) => {
-            return JSON.stringify(data);
-          }],
-        });
-  
+        const response = await axiosInstance.post("/api/pay", paymentData);
         console.log("결제 성공:", response.data);
-  
-        resetData();
-        router.push("/payment-completed");
+
+        // 결제 후, 최신 결제 내역을 가져옴 (/api/pay/all/{storeId})
+        const allPaymentsResponse = await axiosInstance.get(
+          `/api/pay/all/${storeId}`
+        );
+        const payments = allPaymentsResponse.data;
+        if (payments && payments.length > 0) {
+          // 최신 결제 내역을 취득 (가정: 배열의 마지막 요소가 최신)
+          const latestPayment =
+            payments[payments.length - 1] ||
+            payments[0]; // 만약 정렬이 다르다면 수정 필요
+          setLatestPaymentId(
+            latestPayment.payment_id || latestPayment.paymentId || null
+          );
+        }
+
+        // 영수증 출력 여부 모달 띄움
+        setShowReceiptModal(true);
       } catch (error: any) {
         const errorData = error.response?.data as {
           error?: string;
@@ -171,7 +184,6 @@ export default function PaymentPage() {
         };
         const errorMessage = errorData?.message || error.message;
         console.error("결제 오류:", error.response?.data || error);
-  
         if (errorData?.error === "ALREADY_PAYMENT") {
           alert(
             "결제 처리 중 오류가 발생했습니다. 주문 상태를 확인하거나 새 주문을 생성해주세요."
@@ -189,6 +201,36 @@ export default function PaymentPage() {
     }
   };
 
+  // "아니오" 버튼 클릭: POS 상태 초기화 후 /pos로 이동
+  const handleReceiptNo = () => {
+    resetData();
+    router.push("/pos");
+  };
+
+  // "예" 버튼 클릭: 최신 결제의 payment id를 이용해 영수증 데이터를 fetch한 후 POS 페이지로 이동
+const handleReceiptYes = async () => {
+  if (latestPaymentId) {
+    try {
+      const receiptResponse = await axiosInstance.get(
+        `/api/receipts/${latestPaymentId}`
+      );
+      console.log("영수증 데이터:", receiptResponse.data);
+      // 필요 시 receiptResponse.data를 전역 상태에 저장하거나 추가 처리 후
+      resetData();
+      router.push("/pos");
+    } catch (error: any) {
+      alert("영수증 정보를 불러오는데 실패했습니다.");
+      resetData();
+      router.push("/pos");
+    }
+  } else {
+    alert("영수증 정보를 찾을 수 없습니다.");
+    resetData();
+    router.push("/pos");
+  }
+};
+
+
   const handleCancel = async () => {
     if (isNewOrderParam === "1" && orderId) {
       try {
@@ -197,7 +239,6 @@ export default function PaymentPage() {
           quantity: item.quantity,
           orderPrice: item.price * item.quantity,
         }));
-  
         await fetch(`/api/orders/${orderId}`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -211,7 +252,7 @@ export default function PaymentPage() {
     resetData();
     router.push("/pos");
   };
-  
+
   const changes = Math.max(0, charge + splitAmount - initialTotal);
 
   return (
@@ -256,6 +297,7 @@ export default function PaymentPage() {
       </div>
 
       <div className="flex-1 p-4 flex flex-col justify-around items-center relative">
+        {/* Cash 섹션 */}
         <div className="w-3/4 flex flex-col items-center">
           <h3 className="text-gray-600 text-center font-bold mb-10">Cash</h3>
           <div className="flex space-x-2 mb-4 w-full">
@@ -265,7 +307,7 @@ export default function PaymentPage() {
                 value={charge}
                 onChange={handleChargeChange}
                 placeholder="₩ 0"
-                className="py-2 px-4 border border-gray-300 rounded-md w-full bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="py-2 px-4 border border-gray-300 rounded-md w-full bg-white"
                 readOnly={!isOtherClicked}
               />
               <button
@@ -308,6 +350,7 @@ export default function PaymentPage() {
           </div>
         </div>
 
+        {/* Other payment methods & Done 버튼 */}
         <div className="w-3/4 mt-4 flex flex-col items-center">
           <h3 className="text-gray-600 font-bold text-center mb-10">
             Other payment methods
@@ -334,17 +377,14 @@ export default function PaymentPage() {
                   value={splitAmount === 0 ? "" : splitAmount}
                   onChange={handleSplitChange}
                   placeholder="금액 입력"
-                  className="py-2 px-4 border border-gray-300 rounded-md w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="py-2 px-4 border border-gray-300 rounded-md w-full"
                 />
               </div>
             )}
             <motion.button
               onClick={handleDoneClick}
               layout
-              animate={{
-                x: 0,
-                width: "49%",
-              }}
+              animate={{ x: 0, width: "49%" }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
               className={`py-2 rounded-md border border-gray-300 ${
                 totalAmount <= 0
@@ -359,6 +399,7 @@ export default function PaymentPage() {
         </div>
       </div>
 
+      {/* 기존 카드 결제 확인 모달 (필요시 활용) */}
       {showConfirmModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white p-6 rounded-md">
@@ -375,6 +416,29 @@ export default function PaymentPage() {
                 className="py-2 px-4 bg-blue-500 text-white rounded-md"
               >
                 확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 영수증 출력 여부 확인 모달 */}
+      {showReceiptModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded-md">
+            <p>영수증을 출력하시겠습니까?</p>
+            <div className="mt-4 flex justify-end space-x-2">
+              <button
+                onClick={handleReceiptNo}
+                className="py-2 px-4 bg-gray-200 rounded-md"
+              >
+                아니오
+              </button>
+              <button
+                onClick={handleReceiptYes}
+                className="py-2 px-4 bg-blue-500 text-white rounded-md"
+              >
+                예
               </button>
             </div>
           </div>

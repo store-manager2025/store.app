@@ -23,7 +23,7 @@ interface PlaceModalProps {
 }
 
 export default function PlaceModal({ onClose, onPlaceSelected }: PlaceModalProps) {
-  const { menuCache, fetchUnpaidOrderByPlace } = usePosStore();
+  const { menuCache, fetchUnpaidOrderByPlace, setOrderId, setSelectedItems } = usePosStore();
   const [storeId, setStoreId] = useState<number | null>(null);
   const cols = 11;
   const rows = 9;
@@ -120,34 +120,45 @@ export default function PlaceModal({ onClose, onPlaceSelected }: PlaceModalProps
     if (isEditMode || !place.placeId) return;
 
     try {
-      const { data } = await axiosInstance.get(`/api/orders/places/${place.placeId}`);
-      const unpaidOrderId = data?.orderId || null;
+      // 1) 테이블 상태 초기화(기존 orderId, selectedItems 제거)
+      setOrderId(null);
+      setSelectedItems([]);
 
-      const orderMenus = data?.menuDetail.map((menu: any) => {
-        let menuId = menu.menuId ?? null;
-        if (!menuId && menu.menuName) {
+      // 2) 서버에서 해당 placeId의 미결제 주문 조회
+      const { data } = await axiosInstance.get(`/api/orders/places/${place.placeId}`);
+
+      const unpaidOrderId = data?.orderId || null;
+      // 서버가 반환하는 menuDetail을 클라이언트 SelectedItem 형태로 변환
+      // 실제 menu.id가 있으면 우선 사용 → 기존 menuId와 일치해야 "추가 주문" 시 수량 merge가 됨
+      const orderMenus = data?.menuDetail?.map((menu: any) => {
+        let realMenuId = menu.id ?? menu.menuId ?? null;
+        if (!realMenuId && menu.menuName) {
+          // menuCache에 있는 해당 이름의 메뉴를 검색
           const allMenus = Object.values(menuCache).flat();
           const found = allMenus.find((m) => m.menuName === menu.menuName);
           if (found) {
-            menuId = found.menuId;
+            realMenuId = found.menuId;
           } else {
-            console.warn(`Menu ID not found for ${menu.menuName}`);
+            console.warn(`Menu ID not found for '${menu.menuName}' in cache`);
           }
         }
         return {
           menuName: menu.menuName,
           price: menu.totalPrice / menu.totalCount,
           quantity: menu.totalCount,
-          menuId,
-        };
+          menuId: realMenuId,
+        } as SelectedItem;
       }) || [];
 
+      // 3) 상위 컴포넌트(혹은 PosPage 등)로 전달
       onPlaceSelected(place.placeName, place.placeId, unpaidOrderId, orderMenus);
     } catch (err) {
       console.error("미결제 주문 조회 실패:", err);
+      // 미결제 주문이 없거나 오류 -> orderId 없이 테이블만 선택
       onPlaceSelected(place.placeName, place.placeId);
     }
   };
+
 
   const handleDeletePlace = async (place: Place) => {
     if (!storeId || !place.placeId) return;
