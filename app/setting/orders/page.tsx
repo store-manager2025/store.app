@@ -4,8 +4,15 @@ import { useFormStore } from "@/store/formStore";
 import axiosInstance from "@/lib/axiosInstance";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import CalculatorModal from "../../../components/CalculatorModal";
 import { Archive, Search, CreditCard, Banknote } from "lucide-react";
+
+const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+if (token) {
+  axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+}
 
 interface OrderSummary {
   totalPrice: number;
@@ -80,7 +87,7 @@ export default function OrderPage() {
   } = useFormStore();
 
   const [orderSummaries, setOrderSummaries] = useState<OrderSummary[]>([]);
-  const [placeName, setPlaceName] = useState(""); // placeName 상태 유지
+  const [placeName, setPlaceName] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortedGroups, setSortedGroups] = useState<OrderGroup[]>([]);
@@ -89,44 +96,65 @@ export default function OrderPage() {
   const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [asciiReceipt, setAsciiReceipt] = useState<string>("");
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // Fetch order summaries
   useEffect(() => {
-    if (storeId) {
-      const fetchOrderSummaries = async () => {
-        try {
-          const response = await axiosInstance.get(
-            `/api/reports/all/${storeId}`
-          );
-          console.debug("Fetched order summaries:", response.data);
-          setOrderSummaries(response.data || []);
-          setLoading(false);
-        } catch (err) {
-          setError("주문 요약을 불러오지 못했습니다.");
-          setLoading(false);
-        }
-      };
-      fetchOrderSummaries();
+    if (!storeId) {
+      console.log("storeId가 없습니다:", storeId);
+      return;
     }
+    const fetchOrderSummaries = async () => {
+      try {
+        setLoading(true);
+        console.log("API 요청 시작: /api/reports/all/", { storeId });
+        const response = await axiosInstance.get(`/api/reports/all/${storeId}`);
+        console.log("API 응답: /api/reports/all/", {
+          status: response.status,
+          data: response.data,
+        });
+        setOrderSummaries(response.data || []);
+      } catch (err: any) {
+        console.error("API 오류: /api/reports/all/", {
+          message: err.message,
+          response: err.response?.data,
+        });
+        setError("주문 요약을 불러오지 못했습니다.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrderSummaries();
   }, [storeId]);
 
-  // Fetch all daily orders
-  const fetchAllDailyOrders = async () => {
-    if (orderSummaries.length === 0) return;
+  const fetchAllDailyOrders = async (summaries: OrderSummary[]) => {
     try {
+      setLoading(true);
       const groups: OrderGroup[] = await Promise.all(
-        orderSummaries.map(async (summary) => {
+        summaries.map(async (summary) => {
           try {
+            console.log("API 요청 시작: /api/orders/daily", {
+              storeId,
+              date: summary.date,
+            });
             const response = await axiosInstance.get(`/api/reports/daily`, {
               params: { storeId, date: summary.date },
             });
-            console.debug(`Fetched orders for ${summary.date}:`, response.data);
+            console.log("API 응답: /api/orders/daily", {
+              status: response.status,
+              data: response.data,
+            });
             return {
               date: summary.date,
-              orders: response.data || [],
+              orders: Array.isArray(response.data) ? response.data : [],
             };
-          } catch (err) {
-            console.error(`Failed to fetch orders for ${summary.date}:`, err);
+          } catch (err: any) {
+            console.error("API 오류: /api/orders/daily", {
+              message: err.message,
+              response: err.response?.data,
+            });
             return { date: summary.date, orders: [] };
           }
         })
@@ -136,18 +164,23 @@ export default function OrderPage() {
           (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
         )
       );
-    } catch (err) {
+      console.log("sortedGroups 설정 완료:", groups);
+    } catch (err: any) {
+      console.error("fetchAllDailyOrders 오류:", {
+        message: err.message,
+      });
       setError("주문 데이터를 가져오는 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     if (orderSummaries.length > 0) {
-      fetchAllDailyOrders();
+      fetchAllDailyOrders(orderSummaries);
     }
   }, [orderSummaries]);
 
-  // Fetch receipt data and update placeName when selected order changes
   useEffect(() => {
     if (selectedOrderId && selectedDate && dailyOrders[selectedDate]) {
       const order = dailyOrders[selectedDate].find(
@@ -155,21 +188,27 @@ export default function OrderPage() {
       );
       console.log("Selected order in useEffect:", order);
       if (order) {
-        // 선택된 주문의 placeName을 설정
         setPlaceName(order.placeName || "Unknown");
-
         if (order.paymentId) {
           setLoadingReceipt(true);
           const fetchReceipt = async () => {
             try {
-              console.log("Fetching receipt for paymentId:", order.paymentId);
+              console.log("API 요청 시작: /api/receipts/", {
+                paymentId: order.paymentId,
+              });
               const response = await axiosInstance.get(
                 `/api/receipts/${order.paymentId}`
               );
-              console.log("Receipt data:", response.data);
+              console.log("API 응답: /api/receipts/", {
+                status: response.status,
+                data: response.data,
+              });
               setReceipt(response.data);
-            } catch (err) {
-              console.error("Failed to fetch receipt:", err);
+            } catch (err: any) {
+              console.error("API 오류: /api/receipts/", {
+                message: err.message,
+                response: err.response?.data,
+              });
               setReceipt(null);
             } finally {
               setLoadingReceipt(false);
@@ -221,27 +260,27 @@ export default function OrderPage() {
     return `${period} ${formattedHours}:${formattedMinutes}`;
   };
 
-  const handleOrderClick = (order: Order) => {
+  const handleOrderClick = async (order: Order) => {
     const date = new Date(order.orderedAt).toISOString().split("T")[0];
     console.log("Extracted date:", date);
     setSelectedOrder(order.orderId, date);
     if (!dailyOrders[date]) {
-      const fetchDailyReports = async () => {
-        try {
-          const response = await axiosInstance.get(`/api/reports/daily`, {
-            params: { storeId, date },
-          });
-          console.log(
-            "API request URL:",
-            `/api/reports/daily?storeId=${storeId}&date=${date}`
-          );
-          console.log("API /api/reports/daily response:", response.data);
-          setDailyOrders(date, response.data || []);
-        } catch (err) {
-          console.error("일일 주문 내역을 불러오지 못했습니다.", err);
-        }
-      };
-      fetchDailyReports();
+      try {
+        console.log("API 요청 시작: /api/orders/daily", { storeId, date });
+        const response = await axiosInstance.get(`/api/reports/daily`, {
+          params: { storeId, date },
+        });
+        console.log("API 응답: /api/orders/daily", {
+          status: response.status,
+          data: response.data,
+        });
+        setDailyOrders(date, Array.isArray(response.data) ? response.data : []);
+      } catch (err: any) {
+        console.error("API 오류: /api/orders/daily", {
+          message: err.message,
+          response: err.response?.data,
+        });
+      }
     }
   };
 
@@ -252,13 +291,22 @@ export default function OrderPage() {
     }
 
     try {
-      await axiosInstance.post(`/api/pay/cancel/${selectedOrder.paymentId}`);
+      console.log("API 요청 시작: /api/pay/cancel/", {
+        paymentId: selectedOrder.paymentId,
+      });
+      const response = await axiosInstance.post(`/api/pay/cancel/${selectedOrder.paymentId}`);
+      console.log("API 응답: /api/pay/cancel/", {
+        status: response.status,
+        data: response.data,
+      });
       alert("환불이 성공적으로 처리되었습니다.");
       setIsRefundModalOpen(false);
-      // 주문 상태 업데이트 (예: UI 새로고침)
-      fetchAllDailyOrders(); // 주문 목록 갱신
-    } catch (err) {
-      console.error("환불 처리 실패:", err);
+      fetchAllDailyOrders(orderSummaries);
+    } catch (err: any) {
+      console.error("API 오류: /api/pay/cancel/", {
+        message: err.message,
+        response: err.response?.data,
+      });
       alert("환불 처리 중 오류가 발생했습니다.");
     }
   };
@@ -270,42 +318,45 @@ export default function OrderPage() {
     }
 
     try {
+      console.log("API 요청 시작: /api/receipts/", {
+        paymentId: selectedOrder.paymentId,
+      });
       const response = await axiosInstance.get(
         `/api/receipts/${selectedOrder.paymentId}`
       );
+      console.log("API 응답: /api/receipts/", {
+        status: response.status,
+        data: response.data,
+      });
       const receiptData: Receipt = response.data;
       const asciiText = convertToAsciiReceipt(receiptData);
       setAsciiReceipt(asciiText);
       setIsPrintModalOpen(true);
-    } catch (err) {
-      console.error("영수증 조회 실패:", err);
+    } catch (err: any) {
+      console.error("API 오류: /api/receipts/", {
+        message: err.message,
+        response: err.response?.data,
+      });
       alert("영수증 정보를 불러오지 못했습니다.");
     }
   };
 
-  // 아스키 코드로 변환하는 함수
   const convertToAsciiReceipt = (receipt: Receipt): string => {
     const line = "=====================================";
     const subLine = "-------------------------------------";
     let result = `${line}\n`;
-
-    // 가게 정보
     result += `${receipt.storeName}\n`;
     result += `사업자 번호: ${receipt.businessNum}\n`;
     result += `점주: ${receipt.owner}\n`;
     result += `전화번호: ${receipt.phoneNumber}\n`;
     result += `주소: ${receipt.storePlace}\n`;
     result += `${subLine}\n`;
-
-    // 주문 정보
     result += `주문 ID: ${receipt.orderId}\n`;
     result += `영수증 번호: ${receipt.receiptDate}\n`;
     result += `테이블: ${receipt.placeName}\n`;
     result += `접수 번호: ${receipt.joinNumber}\n`;
     result += `결제일시: ${receipt.createdAt}\n`;
     result += `${subLine}\n`;
-
-    // 메뉴 정보
     result += `메뉴:\n`;
     receipt.menuList.forEach((menu) => {
       result += `${menu.menuName} x${
@@ -313,8 +364,6 @@ export default function OrderPage() {
       }  ₩${menu.totalPrice.toLocaleString()} (${menu.discountRate}% 할인)\n`;
     });
     result += `${subLine}\n`;
-
-    // 결제 정보
     result += `결제 정보:\n`;
     receipt.cardInfoList.forEach((card) => {
       if (card.paymentType === "CARD") {
@@ -329,12 +378,62 @@ export default function OrderPage() {
       }
     });
     result += `${subLine}\n`;
-
-    // 총 금액
     result += `총 금액: ₩${receipt.totalAmount.toLocaleString()}\n`;
     result += `${line}`;
-
     return result;
+  };
+
+  const handleSearchClick = () => {
+    setIsDatePickerOpen(!isDatePickerOpen);
+  };
+
+  const handleSearch = async () => {
+    if (startDate && endDate && storeId) {
+      const formattedStartDate = startDate.toISOString().split("T")[0];
+      const formattedEndDate = endDate.toISOString().split("T")[0];
+      try {
+        setLoading(true);
+        console.log("API 요청 시작: /api/reports", {
+          storeId,
+          startDate: formattedStartDate,
+          endDate: formattedEndDate,
+        });
+        const response = await axiosInstance.get(`/api/reports`, {
+          params: {
+            storeId,
+            startDate: formattedStartDate,
+            endDate: formattedEndDate,
+          },
+        });
+        console.log("API 응답: /api/reports", {
+          status: response.status,
+          data: response.data,
+        });
+        const summaries = Array.isArray(response.data) ? response.data : [];
+        await fetchAllDailyOrders(summaries);
+        setIsSearching(true);
+        setIsDatePickerOpen(false);
+      } catch (err: any) {
+        console.error("API 오류: /api/reports", {
+          message: err.message,
+          response: err.response?.data,
+        });
+        setError("주문 검색에 실패했습니다.");
+        setSortedGroups([]);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      alert("시작일과 종료일을 모두 선택해주세요.");
+    }
+  };
+
+  const handleStartDateChange = (date: Date | null) => {
+    setStartDate(date);
+  };
+
+  const handleEndDateChange = (date: Date | null) => {
+    setEndDate(date);
   };
 
   const selectedOrder =
@@ -350,15 +449,99 @@ export default function OrderPage() {
           <div className="h-[3rem] border-b border-gray-400 flex justify-center items-center">
             <span>Daily</span>
           </div>
-          <div className="cursor-pointer bg-gray-50 text-gray-300 m-1 rounded p-4 flex items-center">
+          <div
+            className="cursor-pointer bg-gray-50 text-gray-300 m-1 rounded p-4 flex items-center"
+            onClick={handleSearchClick}
+          >
             <Search className="mr-2" />
-            <span>search (추후 구현)</span>
+            <span>search</span>
           </div>
+
+          {isDatePickerOpen && (
+            <div className="absolute top-[4rem] left-0 z-10 bg-white p-4 shadow-lg">
+              <div className="flex flex-col gap-2">
+                <DatePicker
+                  selected={startDate}
+                  onChange={handleStartDateChange}
+                  selectsStart
+                  startDate={startDate}
+                  endDate={endDate}
+                  placeholderText="시작일 선택"
+                />
+                <DatePicker
+                  selected={endDate}
+                  onChange={handleEndDateChange}
+                  selectsEnd
+                  startDate={startDate}
+                  endDate={endDate}
+                  minDate={startDate || undefined}
+                  placeholderText="종료일 선택"
+                />
+                <div className="flex justify-between">
+                  <button
+                    className="bg-blue-500 text-white px-4 py-2 rounded"
+                    onClick={handleSearch}
+                  >
+                    검색
+                  </button>
+                  <button
+                    className="bg-gray-300 px-4 py-2 rounded"
+                    onClick={() => setIsDatePickerOpen(false)}
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-y-auto h-[calc(100%-7rem)]">
             {loading ? (
               <p>로딩 중...</p>
             ) : error ? (
               <p className="text-red-500">{error}</p>
+            ) : isSearching ? (
+              sortedGroups.length === 0 ? (
+                <p>검색된 주문이 없습니다.</p>
+              ) : (
+                sortedGroups.map((group) => (
+                  <div key={group.date}>
+                    <div className="bg-gray-200 p-2 text-sm font-medium">
+                      {formatDateLabel(group.date)}
+                    </div>
+                    {Array.isArray(group.orders) && group.orders.length > 0 ? (
+                      group.orders.map((order) => (
+                        <div
+                          key={order.orderId}
+                          className={`flex justify-between p-2 border-b border-gray-300 cursor-pointer hover:bg-gray-100 ${
+                            selectedOrderId === order.orderId ? "bg-gray-100" : ""
+                          }`}
+                          onClick={() => handleOrderClick(order)}
+                        >
+                          <div className="flex items-center">
+                            {order.paymentType === "CARD" ? (
+                              <CreditCard className="w-12 h-8 mr-2 text-gray-500" />
+                            ) : (
+                              <Banknote className="w-12 h-8 mr-2 text-gray-500" />
+                            )}
+                            <div className="flex flex-col gap-4 ml-2 text-xs">
+                              <span>₩{order.price.toLocaleString()}</span>
+                              <span>
+                                {order.orderStatus === "SUCCESS" ? "결제 완료" : "취소"}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center text-sm">
+                            <span>{formatTime(order.orderedAt)}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p>주문이 없습니다.</p>
+                    )}
+                  </div>
+                ))
+              )
             ) : sortedGroups.length === 0 ? (
               <p>주문 내역이 없습니다.</p>
             ) : (
@@ -367,40 +550,43 @@ export default function OrderPage() {
                   <div className="bg-gray-200 p-2 text-sm font-medium">
                     {formatDateLabel(group.date)}
                   </div>
-                  {group.orders.map((order) => (
-                    <div
-                      key={order.orderId}
-                      className={`flex justify-between p-2 border-b border-gray-300 cursor-pointer hover:bg-gray-100 ${
-                        selectedOrderId === order.orderId ? "bg-gray-100" : ""
-                      }`}
-                      onClick={() => handleOrderClick(order)}
-                    >
-                      <div className="flex items-center">
-                        {order.paymentType === "CARD" ? (
-                          <CreditCard className="w-12 h-8 mr-2 text-gray-500" />
-                        ) : (
-                          <Banknote className="w-12 h-8 mr-2 text-gray-500" />
-                        )}
-                        <div className="flex flex-col gap-4 ml-2 text-xs">
-                          <span>₩{order.price.toLocaleString()}</span>
-                          <span>
-                            {order.orderStatus === "SUCCESS"
-                              ? "결제 완료"
-                              : "취소"}
-                          </span>
+                  {Array.isArray(group.orders) && group.orders.length > 0 ? (
+                    group.orders.map((order) => (
+                      <div
+                        key={order.orderId}
+                        className={`flex justify-between p-2 border-b border-gray-300 cursor-pointer hover:bg-gray-100 ${
+                          selectedOrderId === order.orderId ? "bg-gray-100" : ""
+                        }`}
+                        onClick={() => handleOrderClick(order)}
+                      >
+                        <div className="flex items-center">
+                          {order.paymentType === "CARD" ? (
+                            <CreditCard className="w-12 h-8 mr-2 text-gray-500" />
+                          ) : (
+                            <Banknote className="w-12 h-8 mr-2 text-gray-500" />
+                          )}
+                          <div className="flex flex-col gap-4 ml-2 text-xs">
+                            <span>₩{order.price.toLocaleString()}</span>
+                            <span>
+                              {order.orderStatus === "SUCCESS" ? "결제 완료" : "취소"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center text-sm">
+                          <span>{formatTime(order.orderedAt)}</span>
                         </div>
                       </div>
-                      <div className="flex items-center text-sm">
-                        <span>{formatTime(order.orderedAt)}</span>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p>주문이 없습니다.</p>
+                  )}
                 </div>
               ))
             )}
           </div>
         </div>
 
+        {/* Middle Section: Order Details */}
         <div className="w-1/2 flex flex-col border-r border-gray-400">
           <div className="flex items-center justify-center uppercase text-lg font-medium border-b border-gray-400 h-[3rem] mb-4">
             {placeName || "로딩 중..."}
