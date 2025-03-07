@@ -31,6 +31,8 @@ interface FullOrder {
   orderedAt: string;
   placeName: string;
   menuDetail: { menuName: string; discountRate: number; totalPrice: number; totalCount: number }[];
+  paymentId?: number;
+  paymentType?: "CARD" | "CASH";
 }
 
 export const useFormStore = create<FormState>((set) => ({

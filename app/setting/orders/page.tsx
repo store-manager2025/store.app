@@ -10,6 +10,7 @@ interface OrderSummary {
   totalPrice: number;
   date: string;
 }
+
 interface Order {
   orderId: number;
   storeId: number;
@@ -17,7 +18,8 @@ interface Order {
   orderStatus: string;
   orderedAt: string;
   placeName: string;
-  paymentType?: "CARD" | "CASH"; // 결제 방식 추가
+  paymentType?: "CARD" | "CASH";
+  paymentId?: number; // Made optional to align with potential FullOrder mismatch
   menuDetail: {
     menuName: string;
     discountRate: number;
@@ -25,6 +27,39 @@ interface Order {
     totalCount: number;
   }[];
 }
+
+interface Receipt {
+  storeName: string;
+  businessNum: string;
+  owner: string;
+  phoneNumber: string;
+  storePlace: string;
+  orderId: number;
+  receiptDate: string;
+  placeName: string;
+  joinNumber: string;
+  totalAmount: number;
+  createdAt: string;
+  menuList: {
+    orderMenuId: number;
+    menuId: number;
+    menuName: string;
+    discountRate: number;
+    totalPrice: number;
+    totalCount: number;
+  }[];
+  cardInfoList: {
+    paymentType: "CARD" | "CASH";
+    cardCompany: string;
+    cardNumber: string;
+    inputMethod: string;
+    approveDate: string;
+    approveNumber: string;
+    installmentPeriod: string;
+    paidMoney: number;
+  }[];
+}
+
 interface OrderGroup {
   date: string;
   orders: Order[];
@@ -49,8 +84,10 @@ export default function OrderPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortedGroups, setSortedGroups] = useState<OrderGroup[]>([]);
+  const [receipt, setReceipt] = useState<Receipt | null>(null); // State for receipt data
+  const [loadingReceipt, setLoadingReceipt] = useState(false); // Loading state for receipt
 
-  // 날짜별 총액 가져오기
+  // Fetch order summaries
   useEffect(() => {
     if (storeId) {
       const fetchOrderSummaries = async () => {
@@ -68,7 +105,7 @@ export default function OrderPage() {
     }
   }, [storeId]);
 
-  // 좌석 이름 가져오기
+  // Fetch place name
   useEffect(() => {
     if (placeId) {
       const fetchPlaceName = async () => {
@@ -83,10 +120,9 @@ export default function OrderPage() {
     }
   }, [placeId]);
 
-  // 모든 날짜의 주문 데이터 가져오기 (Promise.all 사용)
+  // Fetch all daily orders
   const fetchAllDailyOrders = async () => {
     if (orderSummaries.length === 0) return;
-
     try {
       const groups: OrderGroup[] = await Promise.all(
         orderSummaries.map(async (summary) => {
@@ -105,38 +141,68 @@ export default function OrderPage() {
           }
         })
       );
-      // 날짜 기준으로 최신순 정렬
       setSortedGroups(groups.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     } catch (err) {
       setError("주문 데이터를 가져오는 중 오류가 발생했습니다.");
     }
   };
 
-  // orderSummaries가 업데이트될 때마다 모든 주문 데이터 가져오기
-  useEffect(() => {    
+  useEffect(() => {
     if (orderSummaries.length > 0) {
       fetchAllDailyOrders();
     }
   }, [orderSummaries]);
 
+  // Fetch receipt data when selected order changes
+  useEffect(() => {
+    if (selectedOrderId && selectedDate && dailyOrders[selectedDate]) {
+      const order = dailyOrders[selectedDate].find((o) => o.orderId === selectedOrderId);
+      console.log("Selected order in useEffect:", order); // 선택된 주문 확인
+      if (order && order.paymentId) {
+        setLoadingReceipt(true);
+        const fetchReceipt = async () => {
+          try {
+            console.log("Fetching receipt for paymentId:", order.paymentId);
+            const response = await axiosInstance.get(`/api/receipts/${order.paymentId}`);
+            console.log("Receipt data:", response.data);
+            setReceipt(response.data);
+          } catch (err) {
+            console.error("Failed to fetch receipt:", err);
+            setReceipt(null);
+          } finally {
+            setLoadingReceipt(false);
+          }
+        };
+        fetchReceipt();
+      } else {
+        setReceipt(null);
+        setLoadingReceipt(false);
+        console.warn("Selected order does not have a paymentId or order is undefined:", order);
+      }
+    } else {
+      setReceipt(null);
+      setLoadingReceipt(false);
+      console.log("No selectedOrderId, selectedDate, or dailyOrders:", {
+        selectedOrderId,
+        selectedDate,
+        dailyOrders,
+      });
+    }
+  }, [selectedOrderId, selectedDate, dailyOrders]);
+
   const formatDateLabel = (dateString: string): string => {
-    const today = new Date(); // 현재 날짜 가져오기
-    today.setHours(0, 0, 0, 0); // 시간 정보를 00:00:00으로 초기화
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const orderDate = new Date(dateString);
-    orderDate.setHours(0, 0, 0, 0); // 시간 정보를 00:00:00으로 초기화
+    orderDate.setHours(0, 0, 0, 0);
     const diffTime = today.getTime() - orderDate.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-    console.log("Today:", today.toISOString().split("T")[0]); // 디버깅용
-    console.log("Order Date:", orderDate.toISOString().split("T")[0]); // 디버깅용
-    console.log("Diff Days:", diffDays); // 디버깅용
 
     if (diffDays === 0) return "오늘";
     if (diffDays === 1) return "어제";
     return dateString;
   };
 
-  // 시간 포맷팅 함수 (오전/오후 HH:MM)
   const formatTime = (orderedAt: string): string => {
     const date = new Date(orderedAt);
     const hours = date.getHours();
@@ -147,24 +213,25 @@ export default function OrderPage() {
     return `${period} ${formattedHours}:${formattedMinutes}`;
   };
 
-  // 일일 리포트 가져오기 (상세 선택 시)
-  const fetchDailyReports = async (date: string) => {
-    if (!dailyOrders[date] && storeId) {
-      try {
-        const response = await axiosInstance.get(`/api/reports/daily`, {
-          params: { storeId, date },
-        });
-        setDailyOrders(date, response.data || []);
-      } catch (err) {
-        console.error("일일 주문 내역을 불러오지 못했습니다.", err);
-      }
-    }
-  };
-
   const handleOrderClick = (order: Order) => {
-    const date = order.orderedAt.split("T")[0];
+    const date = new Date(order.orderedAt).toISOString().split("T")[0];
+    console.log("Extracted date:", date); // 추출된 date 확인
     setSelectedOrder(order.orderId, date);
-    fetchDailyReports(date);
+    if (!dailyOrders[date]) {
+      const fetchDailyReports = async () => {
+        try {
+          const response = await axiosInstance.get(`/api/reports/daily`, {
+            params: { storeId, date }, // date는 "2025-03-06" 형식
+          });
+          console.log("API request URL:", `/api/reports/daily?storeId=${storeId}&date=${date}`);
+          console.log("API /api/reports/daily response:", response.data);
+          setDailyOrders(date, response.data || []);
+        } catch (err) {
+          console.error("일일 주문 내역을 불러오지 못했습니다.", err);
+        }
+      };
+      fetchDailyReports();
+    }
   };
 
   const selectedOrder =
@@ -206,7 +273,6 @@ export default function OrderPage() {
                       onClick={() => handleOrderClick(order)}
                     >
                       <div className="flex items-center">
-                        {/* 결제 방식에 따라 아이콘 표시 (기본값 CASH로 설정) */}
                         {order.paymentType === "CARD" ? (
                           <CreditCard className="w-12 h-8 mr-2 text-gray-500" />
                         ) : (
@@ -230,44 +296,46 @@ export default function OrderPage() {
           </div>
         </div>
 
-        {/* Middle Section: Order Details */}
+        {/* Middle Section: Receipt Details */}
         <div className="w-1/2 flex flex-col border-r border-gray-400">
           <div className="flex items-center justify-center uppercase text-lg font-medium border-b border-gray-400 h-[3rem] mb-4">
             {placeName || "로딩 중..."}
           </div>
           <div className="flex-1 border-b border-gray-300">
             {selectedOrder ? (
-              <div className="text-sm">
-                <p>
-                  <strong>결제 금액:</strong> ₩
-                  {selectedOrder.price.toLocaleString()}
-                </p>
-                <p>
-                  <strong>상태:</strong>{" "}
-                  {selectedOrder.orderStatus === "SUCCESS" ? "결제 완료" : "결제 취소"}
-                </p>
-                <p>
-                  <strong>주문 날짜:</strong>{" "}
-                  {selectedOrder.orderedAt
-                    ? new Date(selectedOrder.orderedAt).toLocaleString("ko-KR")
-                    : "날짜 정보 없음"}
-                </p>
-                <p>
-                  <strong>좌석:</strong> {selectedOrder.placeName}
-                </p>
-                <div className="mt-2">
-                  <h3 className="font-medium">메뉴 상세:</h3>
-                  {selectedOrder.menuDetail.map((menu, index) => (
-                    <div key={index} className="ml-2">
-                      <p>
-                        {menu.menuName} x {menu.totalCount} - ₩
-                        {menu.totalPrice.toLocaleString()}
+              loadingReceipt ? (
+                <p>로딩 중...</p>
+              ) : receipt ? (
+                <div className="text-sm">
+                  {/* Menu List */}
+                  <div>
+                    {receipt.menuList.map((menu, index) => (
+                      <div key={index}>
+                        {menu.menuName} | {menu.totalCount} | ₩{menu.totalPrice.toLocaleString()}
                         {menu.discountRate > 0 && ` (${menu.discountRate}% 할인)`}
-                      </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-b border-gray-300 my-2"></div>
+                  {/* Receipt Number */}
+                  <p>영수증번호 : {receipt.receiptDate}</p>
+                  <div className="border-b border-gray-300 my-2"></div>
+                  {/* Payment Info */}
+                  {receipt.cardInfoList.map((cardInfo, index) => (
+                    <div key={index}>
+                      <p>결제 : {cardInfo.paymentType}</p>
+                      {cardInfo.paymentType === "CARD" && (
+                        <p>{cardInfo.cardCompany} : {cardInfo.cardNumber}</p>
+                      )}
                     </div>
                   ))}
+                  <div className="border-b border-gray-300 my-2"></div>
+                  {/* Total Amount */}
+                  <p>Total : ₩{receipt.totalAmount.toLocaleString()}</p>
                 </div>
-              </div>
+              ) : (
+                <p>영수증 정보를 불러오지 못했습니다.</p>
+              )
             ) : (
               <p className="text-center text-gray-500">주문을 선택하세요.</p>
             )}
