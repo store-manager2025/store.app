@@ -1,11 +1,8 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Settings } from "lucide-react";
-
 import { usePosStore } from "../../store/usePosStore";
-
-// 컴포넌트
 import CategoryButton from "../../components/CategoryButton";
 import MenuButton from "../../components/PosMenuButton";
 import SelectedMenuList from "../../components/SelectedMenuList";
@@ -18,11 +15,9 @@ interface SelectedItem {
   menuId: number;
 }
 
-/** PosPage 화면 */
 export default function PosPage() {
   const router = useRouter();
 
-  // Zustand
   const {
     storeId,
     tableName,
@@ -41,16 +36,13 @@ export default function PosPage() {
     orderId,
     placeId,
     fetchUnpaidOrderByPlace,
-    menuCache, // menuCache 추가
+    menuCache,
   } = usePosStore();
 
-  // 현재 선택된 카테고리 ID
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
-
-  // 모달 표시 상태
   const [showPlaceModal, setShowPlaceModal] = useState(false);
 
-  // 초기에 storeId 로딩 → 카테고리 불러오기
+  // 초기 storeId 및 tableName 설정
   useEffect(() => {
     const savedStoreId = localStorage.getItem("currentStoreId");
     if (savedStoreId) {
@@ -61,41 +53,61 @@ export default function PosPage() {
     setTableName("");
   }, [setStoreId, setTableName]);
 
-  // 카테고리 불러오기
+  // storeId가 설정되면 카테고리 로드
   useEffect(() => {
     if (storeId) {
       fetchCategories(storeId);
     }
   }, [storeId, fetchCategories]);
 
-  // 모든 카테고리의 메뉴를 사전 로드 및 초기 currentMenus 설정
+  // 카테고리가 로드되면 첫 번째 카테고리 선택 및 메뉴 로드
   useEffect(() => {
     if (storeId && categories.length > 0) {
       const firstCategoryId = categories[0].categoryId;
+      console.log("Categories loaded, setting default category:", firstCategoryId);
       setSelectedCategoryId(firstCategoryId);
 
-      // menuCache에서 첫 번째 카테고리의 메뉴를 가져와 초기화
+      // menuCache에 데이터가 있으면 즉시 currentMenus 설정
       if (menuCache[firstCategoryId]) {
+        console.log("Using cached menus for category:", firstCategoryId, menuCache[firstCategoryId]);
         usePosStore.setState({ currentMenus: menuCache[firstCategoryId] });
+      } else {
+        console.log("Fetching menus for default category:", firstCategoryId);
+        fetchMenusByCategory(firstCategoryId);
       }
 
-      // 모든 카테고리 메뉴를 사전 로드
+      // 모든 카테고리 메뉴 사전 로드 (옵션)
       categories.forEach((cat) => {
-        fetchMenusByCategory(cat.categoryId);
+        if (!menuCache[cat.categoryId]) {
+          fetchMenusByCategory(cat.categoryId);
+        }
       });
     }
   }, [storeId, categories, fetchMenusByCategory, menuCache]);
 
-  // selectedCategoryId 변경 시 currentMenus 즉시 업데이트
+  // selectedCategoryId 변경 시 currentMenus 업데이트
   useEffect(() => {
-    if (selectedCategoryId && menuCache[selectedCategoryId]) {
-      usePosStore.setState({ currentMenus: menuCache[selectedCategoryId] });
-    } else if (selectedCategoryId) {
-      fetchMenusByCategory(selectedCategoryId);
+    if (selectedCategoryId) {
+      console.log("Selected category changed:", selectedCategoryId);
+      if (menuCache[selectedCategoryId]) {
+        console.log("Updating currentMenus from cache:", menuCache[selectedCategoryId]);
+        usePosStore.setState({ currentMenus: menuCache[selectedCategoryId] });
+      } else {
+        console.log("Fetching menus for category:", selectedCategoryId);
+        fetchMenusByCategory(selectedCategoryId);
+      }
     }
   }, [selectedCategoryId, menuCache, fetchMenusByCategory]);
 
-  // 이벤트 핸들러
+  useEffect(() => {
+    if (storeId && categories.length > 0) {
+      const firstCategoryId = categories[0].categoryId;
+      setSelectedCategoryId(firstCategoryId);
+      fetchMenusByCategory(firstCategoryId, true); // forceReload=true로 강제 호출
+      categories.forEach((cat) => fetchMenusByCategory(cat.categoryId));
+    }
+  }, [storeId, categories, fetchMenusByCategory]);
+
   const handleCategoryClick = (catId: number) => {
     setSelectedCategoryId(catId);
   };
@@ -130,7 +142,6 @@ export default function PosPage() {
     setShowPlaceModal(false);
   };
 
-  // 5×4 그리드 렌더링
   const renderGrid = () => {
     const rows = 4;
     const cols = 5;
@@ -203,7 +214,6 @@ export default function PosPage() {
 
   return (
     <div className="flex flex-col h-screen">
-      {/* 헤더 */}
       <div className="relative w-full h-10 border-b-2 border-gray-300 bg-white">
         <div className="absolute bottom-[-4px] h-full flex items-center">
           {categories.map((cat) => (
@@ -234,22 +244,20 @@ export default function PosPage() {
         </div>
       </div>
 
-      {/* 메인 영역 */}
       <div className="flex flex-1 font-mono overflow-hidden">
-        {/* 왼쪽: 메뉴 그리드 (70%) */}
         <div className="flex flex-col w-[70%] overflow-auto">
-          {isLoading && (
+          {isLoading ? (
             <div className="text-center text-gray-400 py-2">Loading...</div>
+          ) : currentMenus.length === 0 ? (
+            <div className="text-center text-gray-400 py-2">No menus available</div>
+          ) : (
+            renderGrid()
           )}
-          {renderGrid()} {/* 조건 제거, 항상 그리드 표시 */}
         </div>
-
-        {/* 오른쪽: 선택된 메뉴 (30%) */}
         <div className="flex flex-col w-[30%] border-l-2 border-gray-300 overflow-hidden">
           <SelectedMenuList />
         </div>
 
-        {/* 모달 */}
         {showPlaceModal && (
           <PlaceModal
             onClose={handleCloseModal}
