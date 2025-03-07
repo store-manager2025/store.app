@@ -80,9 +80,7 @@ export default function OrderPage() {
     storeId,
     selectedOrderId,
     selectedDate,
-    dailyOrders,
     setSelectedOrder,
-    setDailyOrders,
     setCalculatorModalOpen,
   } = useFormStore();
 
@@ -135,14 +133,14 @@ export default function OrderPage() {
       const groups: OrderGroup[] = await Promise.all(
         summaries.map(async (summary) => {
           try {
-            console.log("API 요청 시작: /api/orders/daily", {
+            console.log("API 요청 시작: /api/reports/daily", {
               storeId,
               date: summary.date,
             });
             const response = await axiosInstance.get(`/api/reports/daily`, {
               params: { storeId, date: summary.date },
             });
-            console.log("API 응답: /api/orders/daily", {
+            console.log("API 응답: /api/reports/daily", {
               status: response.status,
               data: response.data,
             });
@@ -151,7 +149,7 @@ export default function OrderPage() {
               orders: Array.isArray(response.data) ? response.data : [],
             };
           } catch (err: any) {
-            console.error("API 오류: /api/orders/daily", {
+            console.error("API 오류: /api/reports/daily", {
               message: err.message,
               response: err.response?.data,
             });
@@ -182,10 +180,9 @@ export default function OrderPage() {
   }, [orderSummaries]);
 
   useEffect(() => {
-    if (selectedOrderId && selectedDate && dailyOrders[selectedDate]) {
-      const order = dailyOrders[selectedDate].find(
-        (o) => o.orderId === selectedOrderId
-      );
+    if (selectedOrderId && selectedDate) {
+      const group = sortedGroups.find((g) => g.date === selectedDate);
+      const order = group?.orders.find((o) => o.orderId === selectedOrderId);
       console.log("Selected order in useEffect:", order);
       if (order) {
         setPlaceName(order.placeName || "Unknown");
@@ -230,13 +227,12 @@ export default function OrderPage() {
       setPlaceName("");
       setReceipt(null);
       setLoadingReceipt(false);
-      console.log("No selectedOrderId, selectedDate, or dailyOrders:", {
+      console.log("No selectedOrderId or selectedDate:", {
         selectedOrderId,
         selectedDate,
-        dailyOrders,
       });
     }
-  }, [selectedOrderId, selectedDate, dailyOrders]);
+  }, [selectedOrderId, selectedDate, sortedGroups]);
 
   const formatDateLabel = (dateString: string): string => {
     const today = new Date();
@@ -264,19 +260,27 @@ export default function OrderPage() {
     const date = new Date(order.orderedAt).toISOString().split("T")[0];
     console.log("Extracted date:", date);
     setSelectedOrder(order.orderId, date);
-    if (!dailyOrders[date]) {
+
+    const groupExists = sortedGroups.some((g) => g.date === date);
+    if (!groupExists) {
       try {
-        console.log("API 요청 시작: /api/orders/daily", { storeId, date });
+        console.log("API 요청 시작: /api/reports/daily", { storeId, date });
         const response = await axiosInstance.get(`/api/reports/daily`, {
           params: { storeId, date },
         });
-        console.log("API 응답: /api/orders/daily", {
+        console.log("API 응답: /api/reports/daily", {
           status: response.status,
           data: response.data,
         });
-        setDailyOrders(date, Array.isArray(response.data) ? response.data : []);
+        setSortedGroups((prev) => [
+          ...prev,
+          {
+            date,
+            orders: Array.isArray(response.data) ? response.data : [],
+          },
+        ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       } catch (err: any) {
-        console.error("API 오류: /api/orders/daily", {
+        console.error("API 오류: /api/reports/daily", {
           message: err.message,
           response: err.response?.data,
         });
@@ -437,8 +441,10 @@ export default function OrderPage() {
   };
 
   const selectedOrder =
-    selectedDate && dailyOrders[selectedDate]
-      ? dailyOrders[selectedDate].find((o) => o.orderId === selectedOrderId)
+    selectedDate && sortedGroups.length > 0
+      ? sortedGroups
+          .find((g) => g.date === selectedDate)
+          ?.orders.find((o) => o.orderId === selectedOrderId) || null
       : null;
 
   return (
@@ -497,7 +503,7 @@ export default function OrderPage() {
 
           <div className="overflow-y-auto h-[calc(100%-7rem)]">
             {loading ? (
-              <p>로딩 중...</p>
+              <p></p>
             ) : error ? (
               <p className="text-red-500">{error}</p>
             ) : isSearching ? (
@@ -589,12 +595,12 @@ export default function OrderPage() {
         {/* Middle Section: Order Details */}
         <div className="w-1/2 flex flex-col border-r border-gray-400">
           <div className="flex items-center justify-center uppercase text-lg font-medium border-b border-gray-400 h-[3rem] mb-4">
-            {placeName || "로딩 중..."}
+            {placeName || ""}
           </div>
           <div className="flex-1 border-b border-gray-300">
             {selectedOrder ? (
               loadingReceipt ? (
-                <p>로딩 중...</p>
+                <p></p>
               ) : receipt ? (
                 <div className="text-sm h-full flex flex-col justify-between">
                   <div className="flex flex-col text-md w-full">

@@ -27,14 +27,25 @@ export default function HomePage() {
   // 영업 개시 상태
   const [showStartModal, setShowStartModal] = useState(false);
 
-  // 토큰 확인 및 자동 로그아웃
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    const token2 = localStorage.getItem("refreshToken");
-    if (!token || !token2) {
-      alert("세션이 만료되었습니다. 다시 로그인해주세요.");
-      handleLogout();
-    }
+    const checkAndRefreshToken = async () => {
+      const accessToken = localStorage.getItem("accessToken");
+      const refreshToken = localStorage.getItem("refreshToken");
+      if (!accessToken && refreshToken) {
+        try {
+          const response = await axiosInstance.post("api/auth/refresh", { refreshToken });
+          localStorage.setItem("accessToken", response.data.accessToken);
+          localStorage.setItem("refreshToken", response.data.refreshToken);
+        } catch (error) {
+          console.error("Token refresh failed:", error);
+          handleLogout();
+        }
+      } else if (!accessToken && !refreshToken) {
+        alert("세션이 만료되었습니다. 다시 로그인해주세요.");
+        handleLogout();
+      }
+    };
+    checkAndRefreshToken();
   }, []);
 
   // 스토어 목록 조회 (API 응답이 배열로 반환된다고 가정)
@@ -99,22 +110,36 @@ export default function HomePage() {
 
   const handleConfirmClick = async () => {
     if (!enteredPassword || !selectedStore) return;
-
     try {
-      await axiosInstance.post("/api/stores/login", {
+      const response = await axiosInstance.post("/api/stores/login", {
         storeId: selectedStore.storeId,
         password: enteredPassword,
       });
-      localStorage.setItem("currentStoreId", selectedStore.storeId);
+      console.log("Login response:", response.data);
+  
+      // 스토어 정보 처리
+      const { storeId } = response.data;
+      if (!storeId) {
+        throw new Error("스토어 정보가 응답에 포함되지 않았습니다.");
+      }
+  
+      // 기존 토큰 유지, 스토어 ID만 업데이트
+      localStorage.setItem("currentStoreId", storeId.toString());
+  
+      console.log("Store ID saved:", {
+        storeId: localStorage.getItem("currentStoreId"),
+        accessToken: localStorage.getItem("accessToken"),
+        refreshToken: localStorage.getItem("refreshToken"),
+      });
+  
       setShowStoreModal(false);
-      setShowStartModal(true); // Show the start business modal instead of directly going to /pos
+      setShowStartModal(true);
     } catch (error: any) {
+      console.error("로그인 요청 중 오류 발생:", error);
       if (error.response?.status === 401) {
         setLoginError("비밀번호가 틀렸습니다.");
         setEnteredPassword("");
-        return;
       }
-      console.error("로그인 요청 중 오류 발생:", error);
     }
   };
 
