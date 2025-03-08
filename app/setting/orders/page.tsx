@@ -9,7 +9,8 @@ import "react-datepicker/dist/react-datepicker.css";
 import CalculatorModal from "../../../components/CalculatorModal";
 import { Archive, Search, CreditCard, Banknote } from "lucide-react";
 
-const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+const token =
+  typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 if (token) {
   axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 }
@@ -179,6 +180,7 @@ export default function OrderPage() {
     }
   }, [orderSummaries]);
 
+  // 영수증 조회를 orderId로 변경
   useEffect(() => {
     if (selectedOrderId && selectedDate) {
       const group = sortedGroups.find((g) => g.date === selectedDate);
@@ -186,37 +188,31 @@ export default function OrderPage() {
       console.log("Selected order in useEffect:", order);
       if (order) {
         setPlaceName(order.placeName || "Unknown");
-        if (order.paymentId) {
-          setLoadingReceipt(true);
-          const fetchReceipt = async () => {
-            try {
-              console.log("API 요청 시작: /api/receipts/", {
-                paymentId: order.paymentId,
-              });
-              const response = await axiosInstance.get(
-                `/api/receipts/${order.paymentId}`
-              );
-              console.log("API 응답: /api/receipts/", {
-                status: response.status,
-                data: response.data,
-              });
-              setReceipt(response.data);
-            } catch (err: any) {
-              console.error("API 오류: /api/receipts/", {
-                message: err.message,
-                response: err.response?.data,
-              });
-              setReceipt(null);
-            } finally {
-              setLoadingReceipt(false);
-            }
-          };
-          fetchReceipt();
-        } else {
-          setReceipt(null);
-          setLoadingReceipt(false);
-          console.warn("Selected order does not have a paymentId:", order);
-        }
+        setLoadingReceipt(true);
+        const fetchReceipt = async () => {
+          try {
+            console.log("API 요청 시작: /api/receipts/", {
+              orderId: order.orderId, // paymentId 대신 orderId 사용
+            });
+            const response = await axiosInstance.get(
+              `/api/receipts/${order.orderId}` // paymentId -> orderId
+            );
+            console.log("API 응답: /api/receipts/", {
+              status: response.status,
+              data: response.data,
+            });
+            setReceipt(response.data);
+          } catch (err: any) {
+            console.error("API 오류: /api/receipts/", {
+              message: err.message,
+              response: err.response?.data,
+            });
+            setReceipt(null);
+          } finally {
+            setLoadingReceipt(false);
+          }
+        };
+        fetchReceipt();
       } else {
         setPlaceName("");
         setReceipt(null);
@@ -272,13 +268,17 @@ export default function OrderPage() {
           status: response.status,
           data: response.data,
         });
-        setSortedGroups((prev) => [
-          ...prev,
-          {
-            date,
-            orders: Array.isArray(response.data) ? response.data : [],
-          },
-        ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setSortedGroups((prev) =>
+          [
+            ...prev,
+            {
+              date,
+              orders: Array.isArray(response.data) ? response.data : [],
+            },
+          ].sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          )
+        );
       } catch (err: any) {
         console.error("API 오류: /api/reports/daily", {
           message: err.message,
@@ -298,7 +298,9 @@ export default function OrderPage() {
       console.log("API 요청 시작: /api/pay/cancel/", {
         paymentId: selectedOrder.paymentId,
       });
-      const response = await axiosInstance.post(`/api/pay/cancel/${selectedOrder.paymentId}`);
+      const response = await axiosInstance.post(
+        `/api/pay/cancel/${selectedOrder.paymentId}`
+      );
       console.log("API 응답: /api/pay/cancel/", {
         status: response.status,
         data: response.data,
@@ -316,17 +318,18 @@ export default function OrderPage() {
   };
 
   const handlePrint = async () => {
-    if (!selectedOrder?.paymentId) {
-      alert("결제 ID가 없습니다.");
+    if (!selectedOrder?.orderId) {
+      // paymentId -> orderId
+      alert("주문 ID가 없습니다.");
       return;
     }
 
     try {
       console.log("API 요청 시작: /api/receipts/", {
-        paymentId: selectedOrder.paymentId,
+        orderId: selectedOrder.orderId, // paymentId -> orderId
       });
       const response = await axiosInstance.get(
-        `/api/receipts/${selectedOrder.paymentId}`
+        `/api/receipts/${selectedOrder.orderId}` // paymentId -> orderId
       );
       console.log("API 응답: /api/receipts/", {
         status: response.status,
@@ -520,7 +523,9 @@ export default function OrderPage() {
                         <div
                           key={order.orderId}
                           className={`flex justify-between p-2 border-b border-gray-300 cursor-pointer hover:bg-gray-100 ${
-                            selectedOrderId === order.orderId ? "bg-gray-100" : ""
+                            selectedOrderId === order.orderId
+                              ? "bg-gray-100"
+                              : ""
                           }`}
                           onClick={() => handleOrderClick(order)}
                         >
@@ -533,7 +538,9 @@ export default function OrderPage() {
                             <div className="flex flex-col gap-4 ml-2 text-xs">
                               <span>₩{order.price.toLocaleString()}</span>
                               <span>
-                                {order.orderStatus === "SUCCESS" ? "결제 완료" : "취소"}
+                                {order.orderStatus === "SUCCESS"
+                                  ? "결제 완료"
+                                  : "취소"}
                               </span>
                             </div>
                           </div>
@@ -574,7 +581,9 @@ export default function OrderPage() {
                           <div className="flex flex-col gap-4 ml-2 text-xs">
                             <span>₩{order.price.toLocaleString()}</span>
                             <span>
-                              {order.orderStatus === "SUCCESS" ? "결제 완료" : "취소"}
+                              {order.orderStatus === "SUCCESS"
+                                ? "결제 완료"
+                                : "취소"}
                             </span>
                           </div>
                         </div>
@@ -636,15 +645,20 @@ export default function OrderPage() {
                     <div className="border-t border-gray-300 py-2 flex flex-col px-4">
                       {receipt.cardInfoList.map((cardInfo, index) => (
                         <div className="flex flex-col gap-1" key={index}>
-                          <div className="flex flex-row justify-between">
-                            <p>결제 :</p>
-                            <span>{cardInfo.paymentType}</span>
-                          </div>
-                          {cardInfo.paymentType === "CARD" && (
-                            <div className="flex flex-row justify-between border-t border-gray-300 pl-4">
-                              <p>{cardInfo.cardCompany} :</p>
-                              <p className="truncate">{cardInfo.cardNumber}</p>
+                          {cardInfo.paymentType === "CASH" ? ( // 현금 결제일 때만 "결제 :" 표시
+                            <div className="flex flex-row justify-between">
+                              <p>결제 :</p>
+                              <span>{cardInfo.paymentType}</span>
                             </div>
+                          ) : (
+                            cardInfo.paymentType === "CARD" && ( // 카드 결제일 때는 카드 정보만 표시
+                              <div className="flex flex-row justify-between">
+                                <p>{cardInfo.cardCompany}카드 :</p>
+                                <p className="flex flex-col justify-center truncate">
+                                  {cardInfo.cardNumber}
+                                </p>
+                              </div>
+                            )
                           )}
                         </div>
                       ))}
