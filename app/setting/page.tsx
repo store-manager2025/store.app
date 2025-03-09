@@ -80,6 +80,10 @@ export default function SettingPage() {
     router.push("setting/orders");
   }
 
+  const handleTransferClick = () => {
+    router.push("/home");
+  }
+
   /**
    * 뒤로가기(상단 화살표) 클릭 시 동작
    * - 메인 UI가 숨겨져 있으면 => Edit UI를 페이드아웃 -> 제거 -> 메인 UI 페이드인
@@ -143,7 +147,7 @@ export default function SettingPage() {
             </h1>
 
             {/* 6개 버튼 */}
-            <div className="grid grid-cols-3 gap-8 w-full relative">
+            <div className="grid grid-cols-2 gap-8 w-full relative">
               <button
               onClick={handleOrdersClick}
                 className="w-80 h-20 font-bold text-left flex flex-row items-center bg-transparent text-gray-700 border border-gray-500 hover:text-white hover:bg-[#333] rounded-lg shadow-sm"
@@ -151,14 +155,15 @@ export default function SettingPage() {
                 <ShoppingBag className="w-6 h-6 mr-2 ml-10" />
                 Orders
               </button>
-              <button
+              {/* <button
                 className="w-80 h-20 font-bold text-left flex flex-row items-center bg-transparent text-gray-700 border border-gray-500 hover:text-white hover:bg-[#333] rounded-lg shadow-sm"
               >
                 <SquareChartGantt className="w-6 h-6 mr-2 ml-10" />
                 Management
-              </button>
+              </button> */}
               <button
                 className="w-80 h-20 font-bold text-left flex flex-row items-center bg-transparent text-gray-700 border border-gray-500 hover:text-white hover:bg-[#333] rounded-lg shadow-sm"
+                onClick={handleTransferClick}
               >
                 <ArrowRightLeft className="w-6 h-6 mr-2 ml-10" />
                 Transfer
@@ -173,12 +178,12 @@ export default function SettingPage() {
                 Items
               </button>
 
-              <button
+              {/* <button
                 className="w-80 h-20 font-bold text-left flex flex-row items-center bg-transparent text-gray-700 border border-gray-500 hover:text-white hover:bg-[#333] rounded-lg shadow-sm"
               >
                 <Settings className="w-6 h-6 mr-2 ml-10" />
                 Settings
-              </button>
+              </button> */}
               <button
                 onClick={handleCloseClick}
                 className="w-80 h-20 font-bold text-left flex flex-row items-center bg-transparent text-gray-700 border border-gray-500 hover:text-white hover:bg-[#333] rounded-lg shadow-sm"
