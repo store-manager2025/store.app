@@ -126,9 +126,7 @@ export default function PaymentPage() {
       return;
     }
 
-    // 결제 후 예상 totalAmount 계산
-    const expectedTotalAfterPayment = totalAmount - splitAmount;
-    if (expectedTotalAfterPayment < 0) {
+    if (splitAmount > totalAmount) {
       alert("카드 결제 금액은 남은 총액을 초과할 수 없습니다.");
       return;
     }
@@ -139,7 +137,7 @@ export default function PaymentPage() {
         orderId: orderId ? parseInt(orderId) : null,
         placeId: placeId ? parseInt(placeId) : null,
         discountAmount: 0,
-        paidMoney: splitAmount,
+        paidMoney: splitAmount, // splitAmount만 카드 결제로
         paymentType: "CARD",
         cardCompany: "국민",
         cardNumber: "1234-1234-1234-1234",
@@ -150,18 +148,13 @@ export default function PaymentPage() {
       const response = await axiosInstance.post("/api/pay", paymentData);
       console.log("카드 결제 성공:", response.data);
 
-      // 결제 후 상태 업데이트
-      const newPaidByCard = paidByCard + splitAmount;
-      setPaidByCard(newPaidByCard);
-      setSplitAmount(0);
+      // 카드 결제 금액 누적
+      setPaidByCard((prev) => prev + splitAmount);
+      setSplitAmount(0); // 카드 결제 후 splitAmount 초기화
 
-      // 즉시 totalAmount 업데이트 (useEffect 대기 없이)
-      const newTotalAmount = Math.max(0, initialTotal - charge - newPaidByCard);
-      setTotalAmount(newTotalAmount);
-      console.log("Post-payment totalAmount:", newTotalAmount);
-
-      // totalAmount가 0이면 영수증 모달 표시
-      if (newTotalAmount <= 0) {
+      // totalAmount가 0이 되었을 때만 영수증 모달 표시
+      const newTotalAmount = totalAmount - splitAmount;
+      if (newTotalAmount === 0) {
         setShowReceiptModal(true);
       }
     } catch (error: any) {
@@ -242,6 +235,19 @@ export default function PaymentPage() {
   // };
 
   const handleCancel = async () => {
+    console.log("Cancel 버튼 클릭됨. 현재 상태:", {
+      charge,
+      splitAmount,
+      totalAmount,
+      orderId,
+      isNewOrderParam,
+      latestPaymentId,
+    });
+
+    let orderCancelSuccess = false;
+    let refundSuccess = false;
+
+    // 2. 신규 주문 취소
     if (isNewOrderParam === "1" && orderId) {
       try {
         const refundData = selectedItems.map((item) => ({
@@ -249,18 +255,50 @@ export default function PaymentPage() {
           quantity: item.quantity,
           orderPrice: item.price * item.quantity,
         }));
-        await fetch(`/api/orders/${orderId}`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(refundData),
-        });
+        console.log("주문 취소 요청:", refundData);
+        // DELETE 대신 POST로 변경 (서버가 DELETE를 지원하지 않을 가능성)
+        const response = await axiosInstance.delete(`/api/orders/all/${orderId}`);
         console.log("새 주문 취소 완료:", orderId);
-      } catch (err) {
-        console.error("주문 삭제 실패:", err);
+        orderCancelSuccess = true;
+      } catch (err: any) {
+        console.error("주문 삭제 실패:", err.response?.data || err);
+        alert("주문 취소 중 오류가 발생했습니다.");
+        return;
       }
+    } else {
+      orderCancelSuccess = true; // 신규 주문이 아니면 성공으로 간주
     }
-    resetData();
-    router.push("/pos");
+
+    // 1. 결제 취소
+    if (orderCancelSuccess && latestPaymentId) {
+      try {
+        console.log(`Requesting refund for paymentId: ${latestPaymentId}`);
+        const response = await axiosInstance.post(`/api/pay/cancel/${latestPaymentId}`);
+        console.log("환불 성공:", response.data);
+        refundSuccess = true;
+
+        setCharge(0);
+        setSplitAmount(0);
+        setTotalAmount(initialTotal);
+        setLatestPaymentId(null);
+      } catch (error: any) {
+        console.error("환불 실패:", error.response?.data || error);
+        alert("환불 처리 중 오류가 발생했습니다.");
+        return;
+      }
+    } else {
+      refundSuccess = !latestPaymentId; // 결제가 없으면 성공으로 간주
+    }
+
+    
+
+    if (orderCancelSuccess && refundSuccess) {
+      console.log("취소 완료: 주문과 결제 모두 성공적으로 취소됨");
+      resetData();
+      router.push("/pos");
+    } else {
+      console.log("취소 실패: 주문 또는 결제 취소 중 하나 이상 실패");
+    }
   };
 
   const changes = Math.max(0, charge + splitAmount - initialTotal);

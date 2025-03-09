@@ -334,7 +334,6 @@ console.debug("[handleOrderClick] selectedItems 초기화 후:", usePosStore.get
     } catch (err: any) {
       console.error("메뉴 삭제 실패:", err);
       if (err.response?.status === 404) {
-        alert("해당 주문 항목을 서버에서 찾을 수 없습니다. 데이터가 이미 삭제되었을 수 있습니다.");
         removeItem(item.menuName);
         try {
           await axiosInstance.get(`/api/orders/detail/${orderId}`);
