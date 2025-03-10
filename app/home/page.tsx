@@ -31,11 +31,14 @@ export default function HomePage() {
     const checkAndRefreshToken = async () => {
       const accessToken = localStorage.getItem("accessToken");
       const refreshToken = localStorage.getItem("refreshToken");
+      
       if (!accessToken && refreshToken) {
         try {
-          const response = await axiosInstance.post("api/auth/refresh", { refreshToken });
+          const response = await axiosInstance.post("/api/auth/refresh", { refreshToken });
           localStorage.setItem("accessToken", response.data.accessToken);
           localStorage.setItem("refreshToken", response.data.refreshToken);
+          // 토큰 재발급 후 스토어 데이터 강제 재조회
+          refetchStores();
         } catch (error) {
           console.error("Token refresh failed:", error);
           handleLogout();
@@ -50,27 +53,28 @@ export default function HomePage() {
 
   // 스토어 목록 조회 (API 응답이 배열로 반환된다고 가정)
   useEffect(() => {
-    axiosInstance
-      .get("/api/stores")
-      .then((response) => {
-        if (response.data && response.data.length > 0) {
+    const fetchStores = async () => {
+      const accessToken = localStorage.getItem("accessToken");
+      if (accessToken) {
+        try {
+          const response = await axiosInstance.get("/api/stores");
           setStores(response.data);
+        } catch (error) {
+          console.error("Error fetching stores: ", error);
         }
-      })
-      .catch((error) => {
-        console.error("Error fetching stores: ", error);
-      });
+      }
+    };
+    fetchStores();
   }, []);
 
-  // 기존 로그아웃 처리 함수
   const handleLogout = async () => {
     try {
       await axiosInstance.post("/auth/logout");
     } catch (error) {
       console.error("Logout error: ", error);
     } finally {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("currentStoreId");
+      // 모든 localStorage 항목 제거
+      localStorage.clear();
       router.push("/");
     }
   };
@@ -78,6 +82,15 @@ export default function HomePage() {
   // 플러스 버튼 클릭 -> 매장 생성 페이지 이동
   const handleGoCreate = () => {
     router.push("/create");
+  };
+
+  const refetchStores = async () => {
+    try {
+      const response = await axiosInstance.get("/api/stores");
+      setStores(response.data);
+    } catch (error) {
+      console.error("Error refetching stores: ", error);
+    }
   };
 
   // 스토어 버튼 클릭 시 해당 스토어에 대해 비밀번호 입력 모달 표시

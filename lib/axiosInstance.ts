@@ -26,22 +26,21 @@ axiosInstance.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem("refreshToken");
-      console.log("Attempting token refresh with:", refreshToken);
+      
       if (!refreshToken) {
-        console.error("No refresh token available, redirecting to login");
         localStorage.clear();
         window.location.href = "/";
         return Promise.reject(new Error("No refresh token"));
       }
+      
       try {
-        const response = await axios.post("http://localhost:8383/auth/refresh", { refreshToken });
-        const { accessToken, refreshToken: newRefreshToken } = response.data;
-        localStorage.setItem("accessToken", accessToken);
-        localStorage.setItem("refreshToken", newRefreshToken);
-        originalRequest.headers["Authorization"] = `Bearer ${accessToken}`;
+        const response = await axios.post("/api/auth/refresh", { refreshToken });
+        localStorage.setItem("accessToken", response.data.accessToken);
+        localStorage.setItem("refreshToken", response.data.refreshToken);
+        originalRequest.headers["Authorization"] = `Bearer ${response.data.accessToken}`;
+        // 재발급 후 원래 요청 재시도
         return axiosInstance(originalRequest);
       } catch (refreshError) {
-        console.error("Token refresh failed:", refreshError);
         localStorage.clear();
         window.location.href = "/";
         return Promise.reject(refreshError);
