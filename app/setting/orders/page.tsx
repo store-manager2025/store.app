@@ -102,7 +102,7 @@ export default function OrderPage() {
   });
 
   // 날짜별로 정렬된 요약 데이터
-  const sortedSummaries = (isSearching ? searchResults : orderSummaries || []).sort((a, b) =>
+  const sortedSummaries = (isSearching ? searchResults : orderSummaries || []).sort((a: any, b:any) =>
     new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 
@@ -222,7 +222,7 @@ export default function OrderPage() {
   };
 
   const handleRefund = async () => {
-    const selectedOrder = allOrdersMap[selectedDate]?.find((o) => o.orderId === selectedOrderId);
+    const selectedOrder = allOrdersMap[selectedDate]?.find((o: Order) => o.orderId === selectedOrderId);
     if (!selectedOrder?.paymentId) {
       alert("결제 ID가 없습니다.");
       return;
@@ -238,7 +238,7 @@ export default function OrderPage() {
   };
 
   const handlePrint = async () => {
-    const selectedOrder = allOrdersMap[selectedDate]?.find((o) => o.orderId === selectedOrderId);
+    const selectedOrder = allOrdersMap[selectedDate]?.find((o: Order) => o.orderId === selectedOrderId);
     if (!selectedOrder?.orderId) {
       alert("주문 ID가 없습니다.");
       return;
@@ -387,7 +387,7 @@ export default function OrderPage() {
             ) : sortedSummaries.length === 0 ? (
               <p>주문 내역이 없습니다.</p>
             ) : (
-              sortedSummaries.slice(0, currentDateIndex + 1).map((summary) => {
+              sortedSummaries.slice(0, currentDateIndex + 1).map((summary: any) => {
                 const orders = allOrdersMap[summary.date] || [];
                 if (orders.length === 0) return null;
                 return (
