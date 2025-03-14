@@ -89,20 +89,22 @@ export default function OrderPage() {
   const [searchResults, setSearchResults] = useState<OrderSummary[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [currentDateIndex, setCurrentDateIndex] = useState(0);
+  const [isCancelled, setIsCancelled] = useState(false); // 반품 내역 조회 여부
 
   // 주문 요약 데이터 가져오기
   const { data: orderSummaries, isLoading: summariesLoading } = useQuery({
-    queryKey: ["orderSummaries", storeId],
+    queryKey: ["orderSummaries", storeId, isCancelled],
     queryFn: async () => {
       if (!storeId) return [];
-      const response = await axiosInstance.get(`/api/reports/all/${storeId}`);
+      const url = isCancelled ? `/api/reports/all/${storeId}?status=cancelled` : `/api/reports/all/${storeId}`;
+      const response = await axiosInstance.get(url);
       return response.data || [];
     },
     enabled: !!storeId,
   });
 
   // 날짜별로 정렬된 요약 데이터
-  const sortedSummaries = (isSearching ? searchResults : orderSummaries || []).sort((a: any, b:any) =>
+  const sortedSummaries = (isSearching ? searchResults : orderSummaries || []).sort((a: any, b: any) =>
     new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 
@@ -116,10 +118,11 @@ export default function OrderPage() {
     isFetchingNextPage,
     isLoading: ordersLoading,
   } = useInfiniteQuery({
-    queryKey: ["ordersForDate", storeId, dateToFetch, isSearching],
+    queryKey: ["ordersForDate", storeId, dateToFetch, isSearching, isCancelled],
     queryFn: async ({ pageParam = 1 }) => {
       if (!storeId || !dateToFetch) return { orders: [], hasMore: false };
-      const response = await axiosInstance.get(`/api/reports/daily`, {
+      const url = isCancelled ? `/api/reports/daily?status=cancelled` : `/api/reports/daily`;
+      const response = await axiosInstance.get(url, {
         params: {
           storeId,
           date: dateToFetch,
@@ -311,7 +314,6 @@ export default function OrderPage() {
           },
         });
         const summaries = Array.isArray(response.data) ? response.data : [];
-        // 날짜 내림차순으로 정렬
         const sortedSummaries = summaries.sort((a, b) => 
           new Date(b.date).getTime() - new Date(a.date).getTime()
         );
@@ -332,6 +334,13 @@ export default function OrderPage() {
 
   const handleEndDateChange = (date: Date | null) => {
     setEndDate(date);
+  };
+
+  // 반품 결제 내역 조회 핸들러
+  const handleCancelledOrders = () => {
+    setIsCancelled(true);
+    setIsSearching(false); // 검색 결과 초기화
+    setCurrentDateIndex(0); // 날짜 인덱스 초기화
   };
 
   return (
@@ -526,11 +535,15 @@ export default function OrderPage() {
             <p className="flex text-gray-700 border-b border-gray-300 mb-4 w-full p-1 pl-2 text-center">Details</p>
             <div className="flex flex-col">
               <div className="flex flex-row justify-center items-center gap-2 mb-4">
-                <button className="bg-gray-200 rounded w-[9rem] py-6 hover:bg-gray-300">당일 매출 내역</button>
+                <button className="bg-gray-200 rounded w-[9rem] py-6 hover:bg-gray-300" onClick={() => setIsCancelled(false)}>
+                  당일 매출 내역
+                </button>
                 <button className="bg-gray-200 rounded w-[9rem] py-6 hover:bg-gray-300">월간 매출 내역</button>
               </div>
               <div className="flex flex-row justify-start items-center gap-4">
-                <button className="bg-gray-200 rounded w-[9rem] py-6 hover:bg-gray-300">반품 결제 내역</button>
+                <button className="bg-gray-200 rounded w-[9rem] py-6 hover:bg-gray-300" onClick={handleCancelledOrders}>
+                  반품 결제 내역
+                </button>
               </div>
             </div>
           </div>
