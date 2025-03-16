@@ -96,7 +96,9 @@ export default function OrderPage() {
     queryKey: ["orderSummaries", storeId, isCancelled],
     queryFn: async () => {
       if (!storeId) return [];
-      const url = isCancelled ? `/api/reports/all/${storeId}?status=cancelled` : `/api/reports/all/${storeId}`;
+      const url = isCancelled
+        ? `/api/reports/all/${storeId}?status=cancelled`
+        : `/api/reports/all/${storeId}?status=all`;
       const response = await axiosInstance.get(url);
       return response.data || [];
     },
@@ -121,7 +123,9 @@ export default function OrderPage() {
     queryKey: ["ordersForDate", storeId, dateToFetch, isSearching, isCancelled],
     queryFn: async ({ pageParam = 1 }) => {
       if (!storeId || !dateToFetch) return { orders: [], hasMore: false };
-      const url = isCancelled ? `/api/reports/daily?status=cancelled` : `/api/reports/daily`;
+      const url = isCancelled
+        ? `/api/reports/daily?status=cancelled`
+        : `/api/reports/daily?status=all`;
       const response = await axiosInstance.get(url, {
         params: {
           storeId,
