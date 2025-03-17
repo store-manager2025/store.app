@@ -9,11 +9,11 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import CalculatorModal from "../../../components/CalculatorModal";
 import { Archive, Search, CreditCard, Banknote } from "lucide-react";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths } from "date-fns";
 
 const queryClient = new QueryClient();
 
-const token =
-  typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 if (token) {
   axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 }
@@ -72,6 +72,120 @@ interface Receipt {
   }[];
 }
 
+interface CalendarDay {
+  day: number;
+  sales: number;
+}
+
+// 새로운 MonthlyCalendar 컴포넌트
+function MonthlyCalendar({ 
+  orderSummaries, 
+  currentMonth, 
+  setCurrentMonth, 
+  storeId 
+}: { 
+  orderSummaries: OrderSummary[];
+  currentMonth: Date;
+  setCurrentMonth: (date: Date) => void;
+  storeId: number;
+}) {
+  const [monthlyData, setMonthlyData] = useState<Record<string, number>>({});
+  const [totalMonthlySales, setTotalMonthlySales] = useState(0);
+  const calendarGrid: (CalendarDay | null)[] = [];
+
+  // 월별 데이터 계산
+  useEffect(() => {
+    const start = startOfMonth(currentMonth);
+    const end = endOfMonth(currentMonth);
+    const daysInMonth = eachDayOfInterval({ start, end });
+
+    const data: Record<string, number> = {};
+    let total = 0;
+
+    daysInMonth.forEach(day => {
+      const dateStr = format(day, "yyyy-MM-dd");
+      const summary = orderSummaries.find(s => s.date === dateStr);
+      const dailyTotal = summary ? summary.totalPrice : 0;
+      data[dateStr] = dailyTotal;
+      total += dailyTotal;
+    });
+
+    setMonthlyData(data);
+    setTotalMonthlySales(total);
+  }, [currentMonth, orderSummaries]);
+
+  // 월 변경 핸들러
+  const handlePrevMonth = () => {
+    setCurrentMonth(subMonths(currentMonth, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(addMonths(currentMonth, 1));
+  };
+
+  // 달력 그리드 생성
+  const start = startOfMonth(currentMonth);
+  const end = endOfMonth(currentMonth);
+  const daysInMonth = eachDayOfInterval({ start, end });
+  const firstDayIndex = getDay(start); // 0 = 일요일
+
+  for (let i = 0; i < firstDayIndex; i++) {
+    calendarGrid.push(null); // 첫 날 이전 빈 셀
+  }
+  daysInMonth.forEach(day => {
+    const dateStr = format(day, "yyyy-MM-dd");
+    calendarGrid.push({ day: day.getDate(), sales: monthlyData[dateStr] || 0 });
+  });
+  while (calendarGrid.length % 7 !== 0) {
+    calendarGrid.push(null); // 마지막 주 채우기
+  }
+
+  const weeks = [];
+  for (let i = 0; i < calendarGrid.length; i += 7) {
+    weeks.push(calendarGrid.slice(i, i + 7));
+  }
+
+  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+
+  return (
+    <div className="p-4 bg-gray-100 rounded-lg shadow w-full h-full flex flex-col">
+      <div className="text-xl font-bold mb-4">Monthly</div>
+      <div className="flex justify-between items-center mb-4">
+        <div className="text-lg font-bold">Total : ₩{totalMonthlySales.toLocaleString()}</div>
+        <div className="flex items-center gap-2">
+          <button onClick={handlePrevMonth} className="p-2 bg-gray-200 rounded hover:bg-gray-300">&lt;</button>
+          <span>{format(currentMonth, "yyyy. MM")}</span>
+          <button onClick={handleNextMonth} className="p-2 bg-gray-200 rounded hover:bg-gray-300">&gt;</button>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-1 mb-2">
+        {weekdays.map(day => (
+          <div key={day} className="text-center font-bold text-gray-700">{day}</div>
+        ))}
+      </div>
+      <div className="flex-1">
+        {weeks.map((week, weekIndex) => (
+          <div key={weekIndex} className="grid grid-cols-7 gap-1">
+            {week.map((day, dayIndex) => (
+              <div
+                key={dayIndex}
+                className="text-center p-2 border border-gray-200 bg-white min-h-[60px] flex flex-col justify-center"
+              >
+                {day ? (
+                  <>
+                    <div>{day.day}</div>
+                    {day.sales > 0 && <div className="text-sm">₩{day.sales.toLocaleString()}</div>}
+                  </>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function OrderPage() {
   const router = useRouter();
   const {
@@ -97,7 +211,9 @@ export default function OrderPage() {
   const [currentDateIndex, setCurrentDateIndex] = useState(0);
   const [isCancelled, setIsCancelled] = useState(false);
   const [isMonthly, setIsMonthly] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date()); // 현재 월 상태 추가
 
+  // 주문 요약 데이터 쿼리
   const { data: orderSummaries, isLoading: summariesLoading } = useQuery({
     queryKey: ["orderSummaries", storeId, isCancelled],
     queryFn: async () => {
@@ -106,7 +222,7 @@ export default function OrderPage() {
       const response = await axiosInstance.get(
         `/api/reports/all/${storeId}?status=${status}`
       );
-      console.log("Order Summaries:", response.data); // 디버깅 로그 추가
+      console.log("Order Summaries:", response.data);
       return response.data || [];
     },
     enabled: !!storeId,
@@ -141,7 +257,6 @@ export default function OrderPage() {
         },
       });
       const orders = response.data || [];
-      // 디버깅 로그 추가
       orders.forEach((order: Order) => {
         console.log(`Order ID: ${order.orderId}, Status: ${order.orderStatus}`);
       });
@@ -154,11 +269,8 @@ export default function OrderPage() {
     enabled: !!storeId && !!dateToFetch,
   });
 
-  const [allOrdersMap, setAllOrdersMap] = useState<{ [date: string]: Order[] }>(
-    {}
-  );
+  const [allOrdersMap, setAllOrdersMap] = useState<{ [date: string]: Order[] }>({});
 
-  // allOrdersMap 초기화 함수
   const resetOrdersMap = () => {
     setAllOrdersMap({});
   };
@@ -171,7 +283,7 @@ export default function OrderPage() {
         try {
           const status = isCancelled ? "cancelled" : "success";
           const response = await axiosInstance.get(`/api/reports/daily`, {
-            params: { storeId, date, page: 1, size: 100, status }, // size를 늘려 모든 주문 가져오기
+            params: { storeId, date, page: 1, size: 100, status },
           });
           const orders = response.data || [];
           setAllOrdersMap((prev) => ({
@@ -231,7 +343,7 @@ export default function OrderPage() {
 
   useEffect(() => {
     if (sortedSummaries.length > 0) {
-      preloadAllOrders(); // 모든 날짜의 주문을 미리 로드
+      preloadAllOrders();
     }
   }, [sortedSummaries, storeId, isCancelled]);
 
@@ -292,6 +404,7 @@ export default function OrderPage() {
   };
 
   const handleRefund = async () => {
+    if (!selectedDate) return;
     const selectedOrder = allOrdersMap[selectedDate]?.find(
       (o: Order) => o.orderId === selectedOrderId
     );
@@ -310,6 +423,7 @@ export default function OrderPage() {
   };
 
   const handlePrint = async () => {
+    if (!selectedDate) return;
     const selectedOrder = allOrdersMap[selectedDate]?.find(
       (o: Order) => o.orderId === selectedOrderId
     );
@@ -325,7 +439,7 @@ export default function OrderPage() {
       const asciiText = convertToAsciiReceipt(receiptData);
       setAsciiReceipt(asciiText);
       setIsPrintModalOpen(true);
-    } catch (err) {
+        } catch (err) {
       alert("영수증 정보를 불러오지 못했습니다.");
     }
   };
@@ -378,12 +492,9 @@ export default function OrderPage() {
 
   const handleSearch = async () => {
     if (startDate && endDate && storeId) {
-      // 날짜를 YYYY-MM-DD 형식으로 포맷
       const formattedStartDate = startDate.toISOString().split("T")[0];
-      
-      // endDate를 하루 늘려서 포함 범위 보장
       const adjustedEndDate = new Date(endDate);
-      adjustedEndDate.setDate(adjustedEndDate.getDate() + 1); // 다음 날로 설정
+      adjustedEndDate.setDate(adjustedEndDate.getDate() + 1);
       const formattedEndDate = adjustedEndDate.toISOString().split("T")[0];
 
       try {
@@ -403,8 +514,8 @@ export default function OrderPage() {
         setSearchResults(sortedSummaries);
         setIsSearching(true);
         setIsDatePickerOpen(false);
-        resetOrdersMap(); // 검색 시 기존 주문 데이터 초기화
-        preloadAllOrders(); // 검색 후 모든 주문 로드
+        resetOrdersMap();
+        preloadAllOrders();
       } catch (err) {
         setError("주문 검색에 실패했습니다.");
       }
@@ -422,7 +533,7 @@ export default function OrderPage() {
   };
 
   const handleCancelledOrders = () => {
-    resetOrdersMap(); // 이전 데이터 초기화
+    resetOrdersMap();
     setIsCancelled(true);
     setIsMonthly(false);
     setIsSearching(false);
@@ -438,9 +549,8 @@ export default function OrderPage() {
     preloadAllOrders();
   };
 
-  // "당일 매출 내역" 버튼 클릭 핸들러
   const handleDailySales = () => {
-    resetOrdersMap(); // 이전 데이터 초기화
+    resetOrdersMap();
     setIsCancelled(false);
     setIsMonthly(false);
     setIsSearching(false);
@@ -457,257 +567,267 @@ export default function OrderPage() {
   };
 
   const handleMonthlySales = () => {
+    resetOrdersMap();
     setIsCancelled(false);
-    setIsMonthly(true); // 월간 상태 설정
+    setIsMonthly(true);
     setIsSearching(false);
     setCurrentDateIndex(0);
     setStartDate(null);
     setEndDate(null);
-    // TODO: 월간 데이터를 가져오는 API 호출 로직 추가 필요
+    setCurrentMonth(new Date()); // 현재 월로 초기화
     queryClient.invalidateQueries({
-      queryKey: ["orderSummaries", storeId, isCancelled, isMonthly],
+      queryKey: ["orderSummaries", storeId, false],
     });
-    preloadAllOrders(); // 현재는 동일 API 사용, 월간 API로 변경 가능
+    preloadAllOrders();
   };
 
   return (
     <div className="flex items-center font-mono justify-center h-screen w-screen relative">
       <div className="relative w-4/5 h-4/5 bg-white bg-opacity-20 border border-gray-400 rounded-2xl flex overflow-hidden">
+        {isMonthly && storeId ? (
+          <MonthlyCalendar
+            orderSummaries={orderSummaries || []}
+            currentMonth={currentMonth}
+            setCurrentMonth={setCurrentMonth}
+            storeId={storeId}
+          />
+        ) : (
+          <>
         <div className="w-1/3 border-r border-gray-400">
           <div className="h-[3rem] border-b border-gray-400 flex justify-center items-center">
-            <span>
-              {isCancelled ? "Return" : isMonthly ? "Monthly" : "Daily"}
-            </span>
+                <span>{isCancelled ? "Return" : "Daily"}</span>
           </div>
-          <div
-            className="cursor-pointer bg-gray-50 text-gray-300 m-1 rounded p-4 flex items-center"
-            onClick={handleSearchClick}
-          >
+              <div
+                className="cursor-pointer bg-gray-50 text-gray-300 m-1 rounded p-4 flex items-center"
+                onClick={handleSearchClick}
+              >
             <Search className="mr-2" />
-            <span>search</span>
-          </div>
-
-          {isDatePickerOpen && (
-            <div className="absolute top-[4rem] left-0 z-10 bg-white p-4 shadow-lg">
-              <div className="flex flex-col gap-2">
-                <DatePicker
-                  selected={startDate}
-                  onChange={handleStartDateChange}
-                  selectsStart
-                  startDate={startDate}
-                  endDate={endDate}
-                  placeholderText="시작일 선택"
-                />
-                <DatePicker
-                  selected={endDate}
-                  onChange={handleEndDateChange}
-                  selectsEnd
-                  startDate={startDate}
-                  endDate={endDate}
-                  minDate={startDate || undefined}
-                  placeholderText="종료일 선택"
-                />
-                <div className="flex justify-between">
-                  <button
-                    className="bg-blue-500 text-white px-4 py-2 rounded"
-                    onClick={handleSearch}
-                  >
-                    검색
-                  </button>
-                  <button
-                    className="bg-gray-300 px-4 py-2 rounded"
-                    onClick={() => setIsDatePickerOpen(false)}
-                  >
-                    닫기
-                  </button>
-                </div>
+                <span>search</span>
               </div>
-            </div>
-          )}
+
+              {isDatePickerOpen && (
+                <div className="absolute top-[4rem] left-0 z-10 bg-white p-4 shadow-lg">
+                  <div className="flex flex-col gap-2">
+                    <DatePicker
+                      selected={startDate}
+                      onChange={handleStartDateChange}
+                      selectsStart
+                      startDate={startDate}
+                      endDate={endDate}
+                      placeholderText="시작일 선택"
+                    />
+                    <DatePicker
+                      selected={endDate}
+                      onChange={handleEndDateChange}
+                      selectsEnd
+                      startDate={startDate}
+                      endDate={endDate}
+                      minDate={startDate || undefined}
+                      placeholderText="종료일 선택"
+                    />
+                    <div className="flex justify-between">
+                      <button
+                        className="bg-blue-500 text-white px-4 py-2 rounded"
+                        onClick={handleSearch}
+                      >
+                        검색
+                      </button>
+                      <button
+                        className="bg-gray-300 px-4 py-2 rounded"
+                        onClick={() => setIsDatePickerOpen(false)}
+                      >
+                        닫기
+                      </button>
+                    </div>
+                  </div>
+          </div>
+              )}
 
           <div className="overflow-y-auto h-[calc(100%-7rem)]">
-            {summariesLoading || ordersLoading ? (
+                {summariesLoading || ordersLoading ? (
               <p>로딩 중...</p>
             ) : error ? (
               <p className="text-red-500">{error}</p>
-            ) : sortedSummaries.length === 0 ? (
+                ) : sortedSummaries.length === 0 ? (
               <p>주문 내역이 없습니다.</p>
             ) : (
-              sortedSummaries.map((summary: any) => {
-                const orders = allOrdersMap[summary.date] || [];
-                return (
-                  <div key={summary.date}>
-                    <div className="bg-gray-200 p-2 text-sm font-medium">
-                      {formatDateLabel(summary.date)}
-                    </div>
-                    {orders.length > 0 ? (
-                      orders.map((order) => (
-                        <div
-                          key={`${order.orderId}-${summary.date}`}
-                          className={`flex justify-between p-2 border-b border-gray-300 cursor-pointer hover:bg-gray-100 ${
-                            selectedOrderId === order.orderId
-                              ? "bg-gray-100"
-                              : ""
-                          }`}
-                          onClick={() =>
-                            setSelectedOrder(order.orderId, summary.date)
-                          }
-                        >
-                          <div className="flex items-center">
-                            {order.paymentType === "CARD" ? (
-                              <CreditCard className="w-12 h-8 mr-2 text-gray-500" />
-                            ) : (
-                              <Banknote className="w-12 h-8 mr-2 text-gray-500" />
-                            )}
-                            <div className="flex flex-col gap-4 ml-2 text-xs">
-                              <span>₩{order.price.toLocaleString()}</span>
-                              <span>
-                                {isCancelled
-                                  ? "취소"
-                                  : order.orderStatus === "SUCCESS"
-                                  ? "결제 완료"
-                                  : "취소"}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center text-sm">
-                            <span>{formatTime(order.orderedAt)}</span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="p-2 text-sm text-gray-500">주문 없음</p>
-                    )}
+                  sortedSummaries.map((summary: any) => {
+                    const orders = allOrdersMap[summary.date] || [];
+                    return (
+                      <div key={summary.date}>
+                  <div className="bg-gray-200 p-2 text-sm font-medium">
+                          {formatDateLabel(summary.date)}
                   </div>
-                );
-              })
-            )}
-            <div ref={observerRef} />
-            {isFetchingNextPage && <p>로딩 중...</p>}
+                        {orders.length > 0 ? (
+                          orders.map((order) => (
+                    <div
+                              key={`${order.orderId}-${summary.date}`}
+                      className={`flex justify-between p-2 border-b border-gray-300 cursor-pointer hover:bg-gray-100 ${
+                                selectedOrderId === order.orderId
+                                  ? "bg-gray-100"
+                                  : ""
+                      }`}
+                              onClick={() =>
+                                setSelectedOrder(order.orderId, summary.date)
+                              }
+                    >
+                      <div className="flex items-center">
+                        {order.paymentType === "CARD" ? (
+                          <CreditCard className="w-12 h-8 mr-2 text-gray-500" />
+                        ) : (
+                          <Banknote className="w-12 h-8 mr-2 text-gray-500" />
+                        )}
+                        <div className="flex flex-col gap-4 ml-2 text-xs">
+                          <span>₩{order.price.toLocaleString()}</span>
+                          <span>
+                                    {isCancelled
+                                      ? "취소"
+                                      : order.orderStatus === "SUCCESS"
+                                      ? "결제 완료"
+                                      : "취소"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center text-sm">
+                        <span>{formatTime(order.orderedAt)}</span>
+                      </div>
+                </div>
+              ))
+                        ) : (
+                          <p className="p-2 text-sm text-gray-500">주문 없음</p>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={observerRef} />
+                {isFetchingNextPage && <p>로딩 중...</p>}
           </div>
         </div>
 
         <div className="w-1/2 flex flex-col border-r border-gray-400">
           <div className="flex items-center justify-center uppercase text-lg font-medium border-b border-gray-400 h-[3rem] mb-4">
-            {placeName || ""}
+                {placeName || ""}
           </div>
           <div className="flex-1 border-b border-gray-300">
-            {selectedOrderId && selectedDate && allOrdersMap[selectedDate] ? (
+                {selectedOrderId && selectedDate && allOrdersMap[selectedDate] ? (
               loadingReceipt ? (
-                <p></p>
+                    <p></p>
               ) : receipt ? (
-                <div className="text-sm h-full flex flex-col justify-between">
-                  <div className="flex flex-col text-md w-full">
+                    <div className="text-sm h-full flex flex-col justify-between">
+                      <div className="flex flex-col text-md w-full">
                     {receipt.menuList.map((menu, index) => (
-                      <div
-                        key={index}
-                        className="flex flex-row justify-center items-center text-center py-1"
-                      >
-                        <span className="min-w-0 flex-1 truncate">
-                          {menu.menuName}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          {menu.totalCount}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          ₩ {menu.totalPrice.toLocaleString()}
-                        </span>
-                        {menu.discountRate > 0 ? (
-                          <span className="min-w-0 flex-1">
-                            ({menu.discountRate}% 할인)
-                          </span>
-                        ) : (
-                          <span className=""></span>
-                        )}
+                          <div
+                            key={index}
+                            className="flex flex-row justify-center items-center text-center py-1"
+                          >
+                            <span className="min-w-0 flex-1 truncate">
+                              {menu.menuName}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              {menu.totalCount}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              ₩ {menu.totalPrice.toLocaleString()}
+                            </span>
+                            {menu.discountRate > 0 ? (
+                              <span className="min-w-0 flex-1">
+                                ({menu.discountRate}% 할인)
+                              </span>
+                            ) : (
+                              <span className=""></span>
+                            )}
                       </div>
                     ))}
                   </div>
-                  <div className="flex flex-col">
-                    <div className="border-t border-gray-300 py-2 flex flex-row justify-between px-4">
-                      <p>영수증번호 :</p>
-                      <span>{receipt.receiptDate}</span>
-                    </div>
-                    <div className="border-t border-gray-300 py-2 flex flex-col px-4">
-                      {receipt.cardInfoList.map((cardInfo, index) => (
-                        <div className="flex flex-col gap-1" key={index}>
-                          {cardInfo.paymentType === "CASH" ? (
-                            <div className="flex flex-row justify-between">
-                              <p>결제 :</p>
-                              <span>{cardInfo.paymentType}</span>
-                            </div>
-                          ) : (
-                            cardInfo.paymentType === "CARD" && (
-                              <div className="flex flex-row justify-between">
-                                <p>{cardInfo.cardCompany}카드 :</p>
-                                <p className="flex flex-col justify-center truncate">
-                                  {cardInfo.cardNumber}
-                                </p>
-                              </div>
-                            )
-                          )}
+                      <div className="flex flex-col">
+                        <div className="border-t border-gray-300 py-2 flex flex-row justify-between px-4">
+                          <p>영수증번호 :</p>
+                          <span>{receipt.receiptDate}</span>
                         </div>
-                      ))}
+                        <div className="border-t border-gray-300 py-2 flex flex-col px-4">
+                  {receipt.cardInfoList.map((cardInfo, index) => (
+                            <div className="flex flex-col gap-1" key={index}>
+                              {cardInfo.paymentType === "CASH" ? (
+                                <div className="flex flex-row justify-between">
+                                  <p>결제 :</p>
+                                  <span>{cardInfo.paymentType}</span>
+                                </div>
+                              ) : (
+                                cardInfo.paymentType === "CARD" && (
+                                  <div className="flex flex-row justify-between">
+                                    <p>{cardInfo.cardCompany}카드 :</p>
+                                    <p className="flex flex-col justify-center truncate">
+                                      {cardInfo.cardNumber}
+                                    </p>
+                                  </div>
+                                )
+                      )}
                     </div>
-                    <div className="border-t border-gray-300 py-2 flex flex-row justify-between px-4">
-                      <p>Total :</p>
-                      <p> ₩{receipt.totalAmount.toLocaleString()}</p>
-                    </div>
-                  </div>
+                  ))}
+                        </div>
+                        <div className="border-t border-gray-300 py-2 flex flex-row justify-between px-4">
+                          <p>Total :</p>
+                          <p> ₩{receipt.totalAmount.toLocaleString()}</p>
+                        </div>
+                      </div>
                 </div>
               ) : (
-                <p className="text-center text-gray-500">주문을 선택하세요.</p>
+                    <p className="text-center text-gray-500">주문을 선택하세요.</p>
               )
             ) : (
               <p className="text-center text-gray-500">주문을 선택하세요.</p>
             )}
           </div>
           <div className="flex text-gray-700 justify-center gap-2 m-4 mb-6">
-            <button
-              className="bg-gray-200 rounded w-1/2 py-6 hover:bg-gray-300"
-              onClick={handlePrint}
-            >
+                <button
+                  className="bg-gray-200 rounded w-1/2 py-6 hover:bg-gray-300"
+                  onClick={handlePrint}
+                >
               Print
             </button>
-            <button
-              className="bg-gray-200 rounded w-1/2 py-6 hover:bg-gray-300"
-              onClick={() => setIsRefundModalOpen(true)}
-            >
+                <button
+                  className="bg-gray-200 rounded w-1/2 py-6 hover:bg-gray-300"
+                  onClick={() => setIsRefundModalOpen(true)}
+                >
               Refund
             </button>
           </div>
 
-          <Modal
-            isOpen={isRefundModalOpen}
-            onClose={() => setIsRefundModalOpen(false)}
-          >
-            <div className="text-center">
-              <p className="mb-4">결제를 취소하시겠습니까?</p>
-              <div className="flex justify-center gap-4">
-                <button
-                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-                  onClick={handleRefund}
-                >
-                  예
-                </button>
-                <button
-                  className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
-                  onClick={() => setIsRefundModalOpen(false)}
-                >
-                  아니오
-                </button>
-              </div>
-            </div>
-          </Modal>
+              <Modal
+                isOpen={isRefundModalOpen}
+                onClose={() => setIsRefundModalOpen(false)}
+              >
+                <div className="text-center">
+                  <p className="mb-4">결제를 취소하시겠습니까?</p>
+                  <div className="flex justify-center gap-4">
+                    <button
+                      className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                      onClick={handleRefund}
+                    >
+                      예
+                    </button>
+                    <button
+                      className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+                      onClick={() => setIsRefundModalOpen(false)}
+                    >
+                      아니오
+                    </button>
+                  </div>
+                </div>
+              </Modal>
 
-          <Modal
-            isOpen={isPrintModalOpen}
-            onClose={() => setIsPrintModalOpen(false)}
-          >
-            <div className="font-mono whitespace-pre text-sm">
-              {asciiReceipt}
-            </div>
-          </Modal>
+              <Modal
+                isOpen={isPrintModalOpen}
+                onClose={() => setIsPrintModalOpen(false)}
+              >
+                <div className="font-mono whitespace-pre text-sm">
+                  {asciiReceipt}
+                </div>
+              </Modal>
         </div>
+          </>
+        )}
 
         <div className="flex flex-col w-1/3 items-center justify-between">
           <div className="flex flex-row w-full gap-1 p-2 ml-4">
@@ -728,7 +848,10 @@ export default function OrderPage() {
                 >
                   당일 매출 내역
                 </button>
-                <button className="bg-gray-200 rounded w-[9rem] py-6 hover:bg-gray-300">
+                <button
+                  className="bg-gray-200 rounded w-[9rem] py-6 hover:bg-gray-300"
+                  onClick={handleMonthlySales}
+                >
                   월간 매출 내역
                 </button>
               </div>
