@@ -400,7 +400,7 @@ export default function OrderPage() {
           </>
         )}
         <div className="flex flex-col p-4 items-center justify-between">
-          <div className="flex flex-row w-full gap-1 p-2">
+          <div className="flex flex-row w-full gap-1 px-2">
             <Archive className="mt-1 text-gray-700" />
             <span className="font-sans text-2xl text-left font-semibold text-gray-800">
               Order
@@ -435,7 +435,7 @@ export default function OrderPage() {
               </div>
             </div>
           </div>
-          <div className="flex flex-row justify-center items-center gap-2 my-6">
+          <div className="flex flex-row justify-center items-center gap-2 my-2">
             <button
               className="bg-gray-200 rounded py-6 w-[9rem] hover:bg-gray-300"
               onClick={() => setCalculatorModalOpen(true)}
