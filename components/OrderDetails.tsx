@@ -6,10 +6,18 @@ interface OrderDetailsProps {
   placeName: string;
   loadingReceipt: boolean;
   receipt: Receipt | null;
+  handlePrint: () => void;
+  setIsRefundModalOpen: (open: boolean) => void;
 }
 
-const OrderDetails: React.FC<OrderDetailsProps> = ({ placeName, loadingReceipt, receipt }) => (
-  <div className="w-1/2 flex flex-col border-r border-gray-400">
+const OrderDetails: React.FC<OrderDetailsProps> = ({
+  placeName,
+  loadingReceipt,
+  receipt,
+  handlePrint,
+  setIsRefundModalOpen,
+}) => (
+  <div className="w-3/4 flex flex-col border-r border-gray-400">
     <div className="flex items-center justify-center uppercase text-lg font-medium border-b border-gray-400 h-[3rem] mb-4">
       {placeName || ""}
     </div>
@@ -70,6 +78,21 @@ const OrderDetails: React.FC<OrderDetailsProps> = ({ placeName, loadingReceipt, 
       ) : (
         <p className="text-center text-gray-500">주문을 선택하세요.</p>
       )}
+    </div>
+    {/* Print와 Refund 버튼을 최하단에 추가 */}
+    <div className="flex text-gray-700 justify-center gap-2 m-4 mb-6">
+      <button
+        className="bg-gray-200 rounded w-1/2 py-6 hover:bg-gray-300"
+        onClick={handlePrint}
+      >
+        Print
+      </button>
+      <button
+        className="bg-gray-200 rounded w-1/2 py-6 hover:bg-gray-300"
+        onClick={() => setIsRefundModalOpen(true)}
+      >
+        Refund
+      </button>
     </div>
   </div>
 );

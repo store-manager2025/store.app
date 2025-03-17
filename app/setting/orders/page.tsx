@@ -1,15 +1,18 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { QueryClient, useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useFormStore } from "@/store/formStore";
 import axiosInstance from "@/lib/axiosInstance";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
+import { Archive } from "lucide-react";
+import { format } from "date-fns";
+import OrderList from "@/components/OrderList";
+import OrderDetails from "@/components/OrderDetails";
+import MonthlyCalendar from "@/components/MonthlyCalendar";
 import CalculatorModal from "../../../components/CalculatorModal";
-import { Archive, Search, CreditCard, Banknote } from "lucide-react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths } from "date-fns";
+import { Order,OrderSummary } from "../../../types/order";
+import { Receipt } from "../../../types/receipt";
 
 const queryClient = new QueryClient();
 
@@ -18,183 +21,10 @@ if (token) {
   axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 }
 
-interface OrderSummary {
-  totalPrice: number;
-  date: string;
-}
-
-interface Order {
-  orderId: number;
-  storeId: number;
-  price: number;
-  orderStatus: string;
-  orderedAt: string;
-  placeName: string;
-  paymentType?: "CARD" | "CASH";
-  paymentId?: number;
-  menuDetail: {
-    menuName: string;
-    discountRate: number;
-    totalPrice: number;
-    totalCount: number;
-  }[];
-}
-
-interface Receipt {
-  storeName: string;
-  businessNum: string;
-  owner: string;
-  phoneNumber: string;
-  storePlace: string;
-  orderId: number;
-  receiptDate: string;
-  placeName: string;
-  joinNumber: string;
-  totalAmount: number;
-  createdAt: string;
-  menuList: {
-    orderMenuId: number;
-    menuId: number;
-    menuName: string;
-    discountRate: number;
-    totalPrice: number;
-    totalCount: number;
-  }[];
-  cardInfoList: {
-    paymentType: "CARD" | "CASH";
-    cardCompany: string;
-    cardNumber: string;
-    inputMethod: string;
-    approveDate: string;
-    approveNumber: string;
-    installmentPeriod: string;
-    paidMoney: number;
-  }[];
-}
-
-interface CalendarDay {
-  day: number;
-  sales: number;
-}
-
-// 새로운 MonthlyCalendar 컴포넌트
-function MonthlyCalendar({ 
-  orderSummaries, 
-  currentMonth, 
-  setCurrentMonth, 
-  storeId 
-}: { 
-  orderSummaries: OrderSummary[];
-  currentMonth: Date;
-  setCurrentMonth: (date: Date) => void;
-  storeId: number;
-}) {
-  const [monthlyData, setMonthlyData] = useState<Record<string, number>>({});
-  const [totalMonthlySales, setTotalMonthlySales] = useState(0);
-  const calendarGrid: (CalendarDay | null)[] = [];
-
-  // 월별 데이터 계산
-  useEffect(() => {
-    const start = startOfMonth(currentMonth);
-    const end = endOfMonth(currentMonth);
-    const daysInMonth = eachDayOfInterval({ start, end });
-
-    const data: Record<string, number> = {};
-    let total = 0;
-
-    daysInMonth.forEach(day => {
-      const dateStr = format(day, "yyyy-MM-dd");
-      const summary = orderSummaries.find(s => s.date === dateStr);
-      const dailyTotal = summary ? summary.totalPrice : 0;
-      data[dateStr] = dailyTotal;
-      total += dailyTotal;
-    });
-
-    setMonthlyData(data);
-    setTotalMonthlySales(total);
-  }, [currentMonth, orderSummaries]);
-
-  // 월 변경 핸들러
-  const handlePrevMonth = () => {
-    setCurrentMonth(subMonths(currentMonth, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentMonth(addMonths(currentMonth, 1));
-  };
-
-  // 달력 그리드 생성
-  const start = startOfMonth(currentMonth);
-  const end = endOfMonth(currentMonth);
-  const daysInMonth = eachDayOfInterval({ start, end });
-  const firstDayIndex = getDay(start); // 0 = 일요일
-
-  for (let i = 0; i < firstDayIndex; i++) {
-    calendarGrid.push(null); // 첫 날 이전 빈 셀
-  }
-  daysInMonth.forEach(day => {
-    const dateStr = format(day, "yyyy-MM-dd");
-    calendarGrid.push({ day: day.getDate(), sales: monthlyData[dateStr] || 0 });
-  });
-  while (calendarGrid.length % 7 !== 0) {
-    calendarGrid.push(null); // 마지막 주 채우기
-  }
-
-  const weeks = [];
-  for (let i = 0; i < calendarGrid.length; i += 7) {
-    weeks.push(calendarGrid.slice(i, i + 7));
-  }
-
-  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
-
-  return (
-    <div className="p-4 bg-gray-100 rounded-lg shadow w-full h-full flex flex-col">
-      <div className="text-xl font-bold mb-4">Monthly</div>
-      <div className="flex justify-between items-center mb-4">
-        <div className="text-lg font-bold">Total : ₩{totalMonthlySales.toLocaleString()}</div>
-        <div className="flex items-center gap-2">
-          <button onClick={handlePrevMonth} className="p-2 bg-gray-200 rounded hover:bg-gray-300">&lt;</button>
-          <span>{format(currentMonth, "yyyy. MM")}</span>
-          <button onClick={handleNextMonth} className="p-2 bg-gray-200 rounded hover:bg-gray-300">&gt;</button>
-        </div>
-      </div>
-      <div className="grid grid-cols-7 gap-1 mb-2">
-        {weekdays.map(day => (
-          <div key={day} className="text-center font-bold text-gray-700">{day}</div>
-        ))}
-      </div>
-      <div className="flex-1">
-        {weeks.map((week, weekIndex) => (
-          <div key={weekIndex} className="grid grid-cols-7 gap-1">
-            {week.map((day, dayIndex) => (
-              <div
-                key={dayIndex}
-                className="text-center p-2 border border-gray-200 bg-white min-h-[60px] flex flex-col justify-center"
-              >
-                {day ? (
-                  <>
-                    <div>{day.day}</div>
-                    {day.sales > 0 && <div className="text-sm">₩{day.sales.toLocaleString()}</div>}
-                  </>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function OrderPage() {
   const router = useRouter();
-  const {
-    storeId,
-    selectedOrderId,
-    selectedDate,
-    setSelectedOrder,
-    setCalculatorModalOpen,
-  } = useFormStore();
+  const { storeId, selectedOrderId, selectedDate, setSelectedOrder, setCalculatorModalOpen } =
+    useFormStore();
 
   const [placeName, setPlaceName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -203,7 +33,6 @@ export default function OrderPage() {
   const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [asciiReceipt, setAsciiReceipt] = useState<string>("");
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [searchResults, setSearchResults] = useState<OrderSummary[]>([]);
@@ -211,26 +40,21 @@ export default function OrderPage() {
   const [currentDateIndex, setCurrentDateIndex] = useState(0);
   const [isCancelled, setIsCancelled] = useState(false);
   const [isMonthly, setIsMonthly] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(new Date()); // 현재 월 상태 추가
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  // 주문 요약 데이터 쿼리
   const { data: orderSummaries, isLoading: summariesLoading } = useQuery({
     queryKey: ["orderSummaries", storeId, isCancelled],
     queryFn: async () => {
       if (!storeId) return [];
       const status = isCancelled ? "cancelled" : "success";
-      const response = await axiosInstance.get(
-        `/api/reports/all/${storeId}?status=${status}`
-      );
+      const response = await axiosInstance.get(`/api/reports/all/${storeId}?status=${status}`);
       console.log("Order Summaries:", response.data);
       return response.data || [];
     },
     enabled: !!storeId,
   });
 
-  const sortedSummaries = (
-    isSearching ? searchResults : orderSummaries || []
-  ).sort(
+  const sortedSummaries = (isSearching ? searchResults : orderSummaries || []).sort(
     (a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 
@@ -248,13 +72,7 @@ export default function OrderPage() {
       if (!storeId || !dateToFetch) return { orders: [], hasMore: false };
       const status = isCancelled ? "cancelled" : "success";
       const response = await axiosInstance.get(`/api/reports/daily`, {
-        params: {
-          storeId,
-          date: dateToFetch,
-          page: pageParam,
-          size: 10,
-          status,
-        },
+        params: { storeId, date: dateToFetch, page: pageParam, size: 10, status },
       });
       const orders = response.data || [];
       orders.forEach((order: Order) => {
@@ -306,40 +124,13 @@ export default function OrderPage() {
           ...existingOrders,
           ...newOrders.filter(
             (newOrder) =>
-              !existingOrders.some(
-                (existing) => existing.orderId === newOrder.orderId
-              )
+              !existingOrders.some((existing) => existing.orderId === newOrder.orderId)
           ),
         ];
         return { ...prev, [dateToFetch]: uniqueOrders };
       });
     }
   }, [ordersForDate, dateToFetch]);
-
-  const observerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isFetchingNextPage) {
-          if (hasNextPage) {
-            fetchNextPage();
-          } else if (currentDateIndex < sortedSummaries.length - 1) {
-            setCurrentDateIndex((prev) => prev + 1);
-          }
-        }
-      },
-      { threshold: 1.0 }
-    );
-    if (observerRef.current) observer.observe(observerRef.current);
-    return () => observer.disconnect();
-  }, [
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    currentDateIndex,
-    sortedSummaries.length,
-  ]);
 
   useEffect(() => {
     if (sortedSummaries.length > 0) {
@@ -349,17 +140,13 @@ export default function OrderPage() {
 
   useEffect(() => {
     if (selectedOrderId && selectedDate && allOrdersMap[selectedDate]) {
-      const order = allOrdersMap[selectedDate].find(
-        (o) => o.orderId === selectedOrderId
-      );
+      const order = allOrdersMap[selectedDate].find((o) => o.orderId === selectedOrderId);
       if (order) {
         setPlaceName(order.placeName || "Unknown");
         setLoadingReceipt(true);
         const fetchReceipt = async () => {
           try {
-            const response = await axiosInstance.get(
-              `/api/receipts/${order.orderId}`
-            );
+            const response = await axiosInstance.get(`/api/receipts/${order.orderId}`);
             setReceipt(response.data);
           } catch (err) {
             setReceipt(null);
@@ -432,14 +219,12 @@ export default function OrderPage() {
       return;
     }
     try {
-      const response = await axiosInstance.get(
-        `/api/receipts/${selectedOrder.orderId}`
-      );
+      const response = await axiosInstance.get(`/api/receipts/${selectedOrder.orderId}`);
       const receiptData: Receipt = response.data;
       const asciiText = convertToAsciiReceipt(receiptData);
       setAsciiReceipt(asciiText);
       setIsPrintModalOpen(true);
-        } catch (err) {
+    } catch (err) {
       alert("영수증 정보를 불러오지 못했습니다.");
     }
   };
@@ -462,9 +247,7 @@ export default function OrderPage() {
     result += `${subLine}\n`;
     result += `메뉴:\n`;
     receipt.menuList.forEach((menu) => {
-      result += `${menu.menuName} x${
-        menu.totalCount
-      }  ₩${menu.totalPrice.toLocaleString()} (${menu.discountRate}% 할인)\n`;
+      result += `${menu.menuName} x${menu.totalCount}  ₩${menu.totalPrice.toLocaleString()} (${menu.discountRate}% 할인)\n`;
     });
     result += `${subLine}\n`;
     result += `결제 정보:\n`;
@@ -486,10 +269,6 @@ export default function OrderPage() {
     return result;
   };
 
-  const handleSearchClick = () => {
-    setIsDatePickerOpen(!isDatePickerOpen);
-  };
-
   const handleSearch = async () => {
     if (startDate && endDate && storeId) {
       const formattedStartDate = startDate.toISOString().split("T")[0];
@@ -500,12 +279,7 @@ export default function OrderPage() {
       try {
         const status = isCancelled ? "cancelled" : "success";
         const response = await axiosInstance.get(`/api/reports`, {
-          params: {
-            storeId,
-            startDate: formattedStartDate,
-            endDate: formattedEndDate,
-            status,
-          },
+          params: { storeId, startDate: formattedStartDate, endDate: formattedEndDate, status },
         });
         const summaries = Array.isArray(response.data) ? response.data : [];
         const sortedSummaries = summaries.sort(
@@ -513,7 +287,6 @@ export default function OrderPage() {
         );
         setSearchResults(sortedSummaries);
         setIsSearching(true);
-        setIsDatePickerOpen(false);
         resetOrdersMap();
         preloadAllOrders();
       } catch (err) {
@@ -524,14 +297,6 @@ export default function OrderPage() {
     }
   };
 
-  const handleStartDateChange = (date: Date | null) => {
-    setStartDate(date);
-  };
-
-  const handleEndDateChange = (date: Date | null) => {
-    setEndDate(date);
-  };
-
   const handleCancelledOrders = () => {
     resetOrdersMap();
     setIsCancelled(true);
@@ -540,12 +305,8 @@ export default function OrderPage() {
     setCurrentDateIndex(0);
     setStartDate(null);
     setEndDate(null);
-    queryClient.invalidateQueries({
-      queryKey: ["orderSummaries", storeId, true],
-    });
-    queryClient.invalidateQueries({
-      queryKey: ["ordersForDate", storeId],
-    });
+    queryClient.invalidateQueries({ queryKey: ["orderSummaries", storeId, true] });
+    queryClient.invalidateQueries({ queryKey: ["ordersForDate", storeId] });
     preloadAllOrders();
   };
 
@@ -557,12 +318,8 @@ export default function OrderPage() {
     setCurrentDateIndex(0);
     setStartDate(null);
     setEndDate(null);
-    queryClient.invalidateQueries({
-      queryKey: ["orderSummaries", storeId, false],
-    });
-    queryClient.invalidateQueries({
-      queryKey: ["ordersForDate", storeId],
-    });
+    queryClient.invalidateQueries({ queryKey: ["orderSummaries", storeId, false] });
+    queryClient.invalidateQueries({ queryKey: ["ordersForDate", storeId] });
     preloadAllOrders();
   };
 
@@ -574,10 +331,8 @@ export default function OrderPage() {
     setCurrentDateIndex(0);
     setStartDate(null);
     setEndDate(null);
-    setCurrentMonth(new Date()); // 현재 월로 초기화
-    queryClient.invalidateQueries({
-      queryKey: ["orderSummaries", storeId, false],
-    });
+    setCurrentMonth(new Date());
+    queryClient.invalidateQueries({ queryKey: ["orderSummaries", storeId, false] });
     preloadAllOrders();
   };
 
@@ -593,244 +348,59 @@ export default function OrderPage() {
           />
         ) : (
           <>
-        <div className="w-1/3 border-r border-gray-400">
-          <div className="h-[3rem] border-b border-gray-400 flex justify-center items-center">
-                <span>{isCancelled ? "Return" : "Daily"}</span>
-          </div>
-              <div
-                className="cursor-pointer bg-gray-50 text-gray-300 m-1 rounded p-4 flex items-center"
-                onClick={handleSearchClick}
-              >
-            <Search className="mr-2" />
-                <span>search</span>
+            <div className="flex flex-row w-full">
+              <OrderList
+                storeId={storeId}
+                isCancelled={isCancelled}
+                selectedOrderId={selectedOrderId}
+                setSelectedOrder={setSelectedOrder}
+                sortedSummaries={sortedSummaries}
+                allOrdersMap={allOrdersMap}
+                fetchNextPage={fetchNextPage}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                formatDateLabel={formatDateLabel}
+                formatTime={formatTime}
+                startDate={startDate}
+                endDate={endDate}
+                setStartDate={setStartDate}
+                setEndDate={setEndDate}
+                handleSearch={handleSearch}
+              />
+              <OrderDetails
+                placeName={placeName}
+                loadingReceipt={loadingReceipt}
+                receipt={receipt}
+                handlePrint={handlePrint}
+                setIsRefundModalOpen={setIsRefundModalOpen}
+              />
+            </div>
+            <Modal isOpen={isRefundModalOpen} onClose={() => setIsRefundModalOpen(false)}>
+              <div className="text-center">
+                <p className="mb-4">결제를 취소하시겠습니까?</p>
+                <div className="flex justify-center gap-4">
+                  <button
+                    className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                    onClick={handleRefund}
+                  >
+                    예
+                  </button>
+                  <button
+                    className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+                    onClick={() => setIsRefundModalOpen(false)}
+                  >
+                    아니오
+                  </button>
+                </div>
               </div>
-
-              {isDatePickerOpen && (
-                <div className="absolute top-[4rem] left-0 z-10 bg-white p-4 shadow-lg">
-                  <div className="flex flex-col gap-2">
-                    <DatePicker
-                      selected={startDate}
-                      onChange={handleStartDateChange}
-                      selectsStart
-                      startDate={startDate}
-                      endDate={endDate}
-                      placeholderText="시작일 선택"
-                    />
-                    <DatePicker
-                      selected={endDate}
-                      onChange={handleEndDateChange}
-                      selectsEnd
-                      startDate={startDate}
-                      endDate={endDate}
-                      minDate={startDate || undefined}
-                      placeholderText="종료일 선택"
-                    />
-                    <div className="flex justify-between">
-                      <button
-                        className="bg-blue-500 text-white px-4 py-2 rounded"
-                        onClick={handleSearch}
-                      >
-                        검색
-                      </button>
-                      <button
-                        className="bg-gray-300 px-4 py-2 rounded"
-                        onClick={() => setIsDatePickerOpen(false)}
-                      >
-                        닫기
-                      </button>
-                    </div>
-                  </div>
-          </div>
-              )}
-
-          <div className="overflow-y-auto h-[calc(100%-7rem)]">
-                {summariesLoading || ordersLoading ? (
-              <p>로딩 중...</p>
-            ) : error ? (
-              <p className="text-red-500">{error}</p>
-                ) : sortedSummaries.length === 0 ? (
-              <p>주문 내역이 없습니다.</p>
-            ) : (
-                  sortedSummaries.map((summary: any) => {
-                    const orders = allOrdersMap[summary.date] || [];
-                    return (
-                      <div key={summary.date}>
-                  <div className="bg-gray-200 p-2 text-sm font-medium">
-                          {formatDateLabel(summary.date)}
-                  </div>
-                        {orders.length > 0 ? (
-                          orders.map((order) => (
-                    <div
-                              key={`${order.orderId}-${summary.date}`}
-                      className={`flex justify-between p-2 border-b border-gray-300 cursor-pointer hover:bg-gray-100 ${
-                                selectedOrderId === order.orderId
-                                  ? "bg-gray-100"
-                                  : ""
-                      }`}
-                              onClick={() =>
-                                setSelectedOrder(order.orderId, summary.date)
-                              }
-                    >
-                      <div className="flex items-center">
-                        {order.paymentType === "CARD" ? (
-                          <CreditCard className="w-12 h-8 mr-2 text-gray-500" />
-                        ) : (
-                          <Banknote className="w-12 h-8 mr-2 text-gray-500" />
-                        )}
-                        <div className="flex flex-col gap-4 ml-2 text-xs">
-                          <span>₩{order.price.toLocaleString()}</span>
-                          <span>
-                                    {isCancelled
-                                      ? "취소"
-                                      : order.orderStatus === "SUCCESS"
-                                      ? "결제 완료"
-                                      : "취소"}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center text-sm">
-                        <span>{formatTime(order.orderedAt)}</span>
-                      </div>
-                </div>
-              ))
-                        ) : (
-                          <p className="p-2 text-sm text-gray-500">주문 없음</p>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-                <div ref={observerRef} />
-                {isFetchingNextPage && <p>로딩 중...</p>}
-          </div>
-        </div>
-
-        <div className="w-1/2 flex flex-col border-r border-gray-400">
-          <div className="flex items-center justify-center uppercase text-lg font-medium border-b border-gray-400 h-[3rem] mb-4">
-                {placeName || ""}
-          </div>
-          <div className="flex-1 border-b border-gray-300">
-                {selectedOrderId && selectedDate && allOrdersMap[selectedDate] ? (
-              loadingReceipt ? (
-                    <p></p>
-              ) : receipt ? (
-                    <div className="text-sm h-full flex flex-col justify-between">
-                      <div className="flex flex-col text-md w-full">
-                    {receipt.menuList.map((menu, index) => (
-                          <div
-                            key={index}
-                            className="flex flex-row justify-center items-center text-center py-1"
-                          >
-                            <span className="min-w-0 flex-1 truncate">
-                              {menu.menuName}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              {menu.totalCount}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              ₩ {menu.totalPrice.toLocaleString()}
-                            </span>
-                            {menu.discountRate > 0 ? (
-                              <span className="min-w-0 flex-1">
-                                ({menu.discountRate}% 할인)
-                              </span>
-                            ) : (
-                              <span className=""></span>
-                            )}
-                      </div>
-                    ))}
-                  </div>
-                      <div className="flex flex-col">
-                        <div className="border-t border-gray-300 py-2 flex flex-row justify-between px-4">
-                          <p>영수증번호 :</p>
-                          <span>{receipt.receiptDate}</span>
-                        </div>
-                        <div className="border-t border-gray-300 py-2 flex flex-col px-4">
-                  {receipt.cardInfoList.map((cardInfo, index) => (
-                            <div className="flex flex-col gap-1" key={index}>
-                              {cardInfo.paymentType === "CASH" ? (
-                                <div className="flex flex-row justify-between">
-                                  <p>결제 :</p>
-                                  <span>{cardInfo.paymentType}</span>
-                                </div>
-                              ) : (
-                                cardInfo.paymentType === "CARD" && (
-                                  <div className="flex flex-row justify-between">
-                                    <p>{cardInfo.cardCompany}카드 :</p>
-                                    <p className="flex flex-col justify-center truncate">
-                                      {cardInfo.cardNumber}
-                                    </p>
-                                  </div>
-                                )
-                      )}
-                    </div>
-                  ))}
-                        </div>
-                        <div className="border-t border-gray-300 py-2 flex flex-row justify-between px-4">
-                          <p>Total :</p>
-                          <p> ₩{receipt.totalAmount.toLocaleString()}</p>
-                        </div>
-                      </div>
-                </div>
-              ) : (
-                    <p className="text-center text-gray-500">주문을 선택하세요.</p>
-              )
-            ) : (
-              <p className="text-center text-gray-500">주문을 선택하세요.</p>
-            )}
-          </div>
-          <div className="flex text-gray-700 justify-center gap-2 m-4 mb-6">
-                <button
-                  className="bg-gray-200 rounded w-1/2 py-6 hover:bg-gray-300"
-                  onClick={handlePrint}
-                >
-              Print
-            </button>
-                <button
-                  className="bg-gray-200 rounded w-1/2 py-6 hover:bg-gray-300"
-                  onClick={() => setIsRefundModalOpen(true)}
-                >
-              Refund
-            </button>
-          </div>
-
-              <Modal
-                isOpen={isRefundModalOpen}
-                onClose={() => setIsRefundModalOpen(false)}
-              >
-                <div className="text-center">
-                  <p className="mb-4">결제를 취소하시겠습니까?</p>
-                  <div className="flex justify-center gap-4">
-                    <button
-                      className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-                      onClick={handleRefund}
-                    >
-                      예
-                    </button>
-                    <button
-                      className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
-                      onClick={() => setIsRefundModalOpen(false)}
-                    >
-                      아니오
-                    </button>
-                  </div>
-                </div>
-              </Modal>
-
-              <Modal
-                isOpen={isPrintModalOpen}
-                onClose={() => setIsPrintModalOpen(false)}
-              >
-                <div className="font-mono whitespace-pre text-sm">
-                  {asciiReceipt}
-                </div>
-              </Modal>
-        </div>
+            </Modal>
+            <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)}>
+              <div className="font-mono whitespace-pre text-sm">{asciiReceipt}</div>
+            </Modal>
           </>
         )}
-
-        <div className="flex flex-col w-1/3 items-center justify-between">
-          <div className="flex flex-row w-full gap-1 p-2 ml-4">
+        <div className="flex flex-col p-4 items-center justify-between">
+          <div className="flex flex-row w-full gap-1 p-2">
             <Archive className="mt-1 text-gray-700" />
             <span className="font-sans text-2xl text-left font-semibold text-gray-800">
               Order
