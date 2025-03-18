@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { QueryClient, useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useFormStore } from "@/store/formStore";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
 import axiosInstance from "@/lib/axiosInstance";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
@@ -451,7 +453,9 @@ export default function OrderPage() {
           </div>
         </div>
       </div>
+      <DndProvider backend={HTML5Backend}>
       <CalculatorModal />
+      </DndProvider>
     </div>
   );
 }

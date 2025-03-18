@@ -85,7 +85,7 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
   const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
 
   return (
-    <div className="rounded-lg shadow w-full h-full flex flex-col">
+    <div className="border-r border-gray-400 shadow w-full h-full flex flex-col">
       {/* Monthly와 Total을 세로로 정렬하고, 오른쪽에 날짜 선택 버튼 배치 */}
       <div className="flex border-b border-gray-400 justify-between items-center">
         <div className="flex w-2/5 text-center border-r border-gray-400 flex-col">
