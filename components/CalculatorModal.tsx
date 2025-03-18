@@ -10,7 +10,7 @@ export default function CalculatorModal() {
   const [operator, setOperator] = useState<string | null>(null);
   const [previousValue, setPreviousValue] = useState<string | null>(null);
   const [position, setPosition] = useState<{ x: number; y: number }>({
-    x: window.innerWidth / 2 - 350, // 초기 중앙 위치
+    x: window.innerWidth / 2 - 280, // 초기 중앙 위치
     y: window.innerHeight / 2 - 350,
   });
   const modalRef = useRef<HTMLDivElement>(null);

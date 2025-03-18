@@ -1,9 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { QueryClient, useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useFormStore } from "@/store/formStore";
-import { DndProvider } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
 import axiosInstance from "@/lib/axiosInstance";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
@@ -13,8 +11,9 @@ import OrderList from "@/components/OrderList";
 import OrderDetails from "@/components/OrderDetails";
 import MonthlyCalendar from "@/components/MonthlyCalendar";
 import CalculatorModal from "../../../components/CalculatorModal";
-import { Order,OrderSummary } from "../../../types/order";
+import { Order, OrderSummary } from "../../../types/order";
 import { Receipt } from "../../../types/receipt";
+import _ from "lodash";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +42,8 @@ export default function OrderPage() {
   const [isCancelled, setIsCancelled] = useState(false);
   const [isMonthly, setIsMonthly] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isDataReady, setIsDataReady] = useState(false);
 
   const { data: orderSummaries, isLoading: summariesLoading } = useQuery({
     queryKey: ["orderSummaries", storeId, isCancelled],
@@ -54,6 +55,7 @@ export default function OrderPage() {
       return response.data || [];
     },
     enabled: !!storeId,
+    staleTime: 1000 * 60 * 5,
   });
 
   const sortedSummaries = (isSearching ? searchResults : orderSummaries || []).sort(
@@ -93,27 +95,38 @@ export default function OrderPage() {
 
   const resetOrdersMap = () => {
     setAllOrdersMap({});
+    setIsDataReady(false);
   };
 
   const preloadAllOrders = async () => {
-    if (!storeId || !sortedSummaries.length) return;
-    for (const summary of sortedSummaries) {
-      const date = summary.date;
-      if (!allOrdersMap[date] || allOrdersMap[date].length === 0) {
-        try {
+    if (!storeId || !sortedSummaries.length) {
+      setIsDataReady(true);
+      setIsLoadingData(false);
+      return;
+    }
+    setIsLoadingData(true);
+    try {
+      const tempOrdersMap: { [date: string]: Order[] } = {};
+      const preloadPromises = sortedSummaries.map(async (summary) => {
+        const date = summary.date;
+        if (!tempOrdersMap[date] || tempOrdersMap[date].length === 0) {
           const status = isCancelled ? "cancelled" : "success";
           const response = await axiosInstance.get(`/api/reports/daily`, {
             params: { storeId, date, page: 1, size: 100, status },
           });
           const orders = response.data || [];
-          setAllOrdersMap((prev) => ({
-            ...prev,
-            [date]: orders,
-          }));
-        } catch (err) {
-          console.error(`Failed to load orders for ${date}:`, err);
+          console.log(`Loaded orders for ${date}:`, orders.length); // 디버깅 로그
+          tempOrdersMap[date] = orders;
         }
-      }
+      });
+      await Promise.all(preloadPromises);
+      setAllOrdersMap(tempOrdersMap);
+      setIsDataReady(true);
+    } catch (err) {
+      console.error("Preload failed:", err);
+      setError("데이터 로드에 실패했습니다.");
+    } finally {
+      setIsLoadingData(false);
     }
   };
 
@@ -131,11 +144,12 @@ export default function OrderPage() {
         ];
         return { ...prev, [dateToFetch]: uniqueOrders };
       });
+      setIsDataReady(true);
     }
   }, [ordersForDate, dateToFetch]);
 
   useEffect(() => {
-    if (sortedSummaries.length > 0) {
+    if (sortedSummaries.length > 0 && !isDataReady) {
       preloadAllOrders();
     }
   }, [sortedSummaries, storeId, isCancelled]);
@@ -290,7 +304,7 @@ export default function OrderPage() {
         setSearchResults(sortedSummaries);
         setIsSearching(true);
         resetOrdersMap();
-        preloadAllOrders();
+        await preloadAllOrders();
       } catch (err) {
         setError("주문 검색에 실패했습니다.");
       }
@@ -307,23 +321,44 @@ export default function OrderPage() {
     setCurrentDateIndex(0);
     setStartDate(null);
     setEndDate(null);
-    queryClient.invalidateQueries({ queryKey: ["orderSummaries", storeId, true] });
-    queryClient.invalidateQueries({ queryKey: ["ordersForDate", storeId] });
+    // 이전 캐시 제거
+    queryClient.removeQueries({ queryKey: ["orderSummaries", storeId] });
+    queryClient.removeQueries({ queryKey: ["ordersForDate", storeId] });
+    queryClient.refetchQueries({ queryKey: ["orderSummaries", storeId, true] });
+    queryClient.refetchQueries({ queryKey: ["ordersForDate", storeId] });
     preloadAllOrders();
   };
 
-  const handleDailySales = () => {
-    resetOrdersMap();
-    setIsCancelled(false);
-    setIsMonthly(false);
-    setIsSearching(false);
-    setCurrentDateIndex(0);
-    setStartDate(null);
-    setEndDate(null);
-    queryClient.invalidateQueries({ queryKey: ["orderSummaries", storeId, false] });
-    queryClient.invalidateQueries({ queryKey: ["ordersForDate", storeId] });
-    preloadAllOrders();
-  };
+  const handleDailySales = useCallback(
+    _.debounce(async () => {
+      if (isLoadingData) return;
+      if (!isCancelled && !isMonthly && !isSearching) {
+        if (isDataReady) {
+          await queryClient.refetchQueries({ queryKey: ["orderSummaries", storeId, false] });
+          await queryClient.refetchQueries({ queryKey: ["ordersForDate", storeId] });
+          await preloadAllOrders();
+          return;
+        }
+      }
+
+      resetOrdersMap();
+      setIsCancelled(false);
+      setIsMonthly(false);
+      setIsSearching(false);
+      setCurrentDateIndex(0);
+      setStartDate(null);
+      setEndDate(null);
+      setIsLoadingData(true);
+      // 이전 캐시 제거
+      queryClient.removeQueries({ queryKey: ["orderSummaries", storeId] });
+      queryClient.removeQueries({ queryKey: ["ordersForDate", storeId] });
+      await queryClient.refetchQueries({ queryKey: ["orderSummaries", storeId, false] });
+      await queryClient.refetchQueries({ queryKey: ["ordersForDate", storeId] });
+      await preloadAllOrders();
+      setIsLoadingData(false);
+    }, 100),
+    [isLoadingData, isDataReady, isCancelled, isMonthly, isSearching, storeId]
+  );
 
   const handleMonthlySales = () => {
     resetOrdersMap();
@@ -334,7 +369,10 @@ export default function OrderPage() {
     setStartDate(null);
     setEndDate(null);
     setCurrentMonth(new Date());
-    queryClient.invalidateQueries({ queryKey: ["orderSummaries", storeId, false] });
+    queryClient.removeQueries({ queryKey: ["orderSummaries", storeId] });
+    queryClient.removeQueries({ queryKey: ["ordersForDate", storeId] });
+    queryClient.refetchQueries({ queryKey: ["orderSummaries", storeId, false] });
+    queryClient.refetchQueries({ queryKey: ["ordersForDate", storeId] });
     preloadAllOrders();
   };
 
@@ -368,6 +406,8 @@ export default function OrderPage() {
                 setStartDate={setStartDate}
                 setEndDate={setEndDate}
                 handleSearch={handleSearch}
+                isLoadingData={isLoadingData}
+                isDataReady={isDataReady}
               />
               <OrderDetails
                 placeName={placeName}
@@ -453,9 +493,7 @@ export default function OrderPage() {
           </div>
         </div>
       </div>
-      <DndProvider backend={HTML5Backend}>
       <CalculatorModal />
-      </DndProvider>
     </div>
   );
 }

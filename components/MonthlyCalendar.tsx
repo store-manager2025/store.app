@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   format,
   startOfMonth,
@@ -31,6 +31,8 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
 }) => {
   const [monthlyData, setMonthlyData] = useState<Record<string, number>>({});
   const [totalMonthlySales, setTotalMonthlySales] = useState(0);
+  const calendarRef = useRef<HTMLDivElement>(null);
+  const [cellSize, setCellSize] = useState<number>(70); // 초기 셀 크기 (기본값)
 
   useEffect(() => {
     const start = startOfMonth(currentMonth);
@@ -50,6 +52,22 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
 
     setMonthlyData(data);
     setTotalMonthlySales(total);
+
+    // 컨테이너 크기에 따라 셀 크기 계산
+    const updateCellSize = () => {
+      if (calendarRef.current && calendarRef.current.parentElement) {
+        const parentWidth = calendarRef.current.parentElement.clientWidth;
+        const parentHeight = calendarRef.current.parentElement.clientHeight;
+        const availableWidth = parentWidth / 7; // 7일(일요일~토요일)
+        const availableHeight = (parentHeight - 80) / 6; // 헤더(80px 추정) 제외 후 6주
+        const newCellSize = Math.min(availableWidth, availableHeight) - 2; // 간격 고려
+        setCellSize(Math.max(40, newCellSize)); // 최소 40px로 제한
+      }
+    };
+
+    updateCellSize();
+    window.addEventListener("resize", updateCellSize);
+    return () => window.removeEventListener("resize", updateCellSize);
   }, [currentMonth, orderSummaries]);
 
   const handlePrevMonth = () => {
@@ -85,7 +103,10 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
   const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
 
   return (
-    <div className="border-r border-gray-400 shadow w-full h-full flex flex-col">
+    <div
+      ref={calendarRef}
+      className="border-r border-gray-400 shadow w-full h-full flex flex-col overflow-auto"
+    >
       {/* Monthly와 Total을 세로로 정렬하고, 오른쪽에 날짜 선택 버튼 배치 */}
       <div className="flex border-b border-gray-400 justify-between items-center">
         <div className="flex w-2/5 text-center border-r border-gray-400 flex-col">
@@ -116,25 +137,29 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
             key={day}
             className={`text-sm text-center ${
               day === "일" ? "text-red-500" : "text-gray-700"
-            }`}
+            } bg-gray-100 py-2`}
           >
             {day}
           </div>
         ))}
       </div>
-      <div className="px-2 flex-1">
+      <div className="px-2 flex-1 overflow-auto">
         {weeks.map((week, weekIndex) => (
-          <div key={weekIndex} className="grid grid-cols-7 gap-1">
+          <div key={weekIndex} className="grid grid-cols-7 gap-1 mb-1">
             {week.map((day, dayIndex) => (
               <div
                 key={dayIndex}
-                className="p-2 border border-gray-200 bg-white min-h-[70px] flex flex-col"
+                className="p-1 border border-gray-200 bg-white flex flex-col justify-between"
+                style={{
+                  minHeight: `${cellSize}px`,
+                  minWidth: `${cellSize}px`,
+                }}
               >
                 {day ? (
-                  <div className="flex justify-between items-start h-full">
+                  <div className="flex flex-col h-full">
                     <div className="text-left text-gray-400 text-xs">{day.day}</div>
                     {day.sales > 0 && (
-                      <div className="text-sm self-end">
+                      <div className="text-sm text-right">
                         ₩{day.sales.toLocaleString()}
                       </div>
                     )}

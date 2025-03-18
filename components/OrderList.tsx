@@ -21,6 +21,8 @@ interface OrderListProps {
   setStartDate: (date: Date | null) => void;
   setEndDate: (date: Date | null) => void;
   handleSearch: () => void;
+  isLoadingData: boolean;
+  isDataReady: boolean;
 }
 
 const OrderList: React.FC<OrderListProps> = ({
@@ -40,6 +42,8 @@ const OrderList: React.FC<OrderListProps> = ({
   setStartDate,
   setEndDate,
   handleSearch,
+  isLoadingData,
+  isDataReady,
 }) => {
   const observerRef = useRef<HTMLDivElement | null>(null);
 
@@ -63,7 +67,6 @@ const OrderList: React.FC<OrderListProps> = ({
       <div className="h-[3rem] border-b border-gray-400 flex justify-center items-center">
         <span>{isCancelled ? "Return" : "Daily"}</span>
       </div>
-      {/* SearchBar를 헤더 바로 아래에 배치 */}
       <SearchBar
         startDate={startDate}
         endDate={endDate}
@@ -72,7 +75,9 @@ const OrderList: React.FC<OrderListProps> = ({
         handleSearch={handleSearch}
       />
       <div className="overflow-y-auto h-[calc(100%-7rem)]">
-        {sortedSummaries.length === 0 ? (
+        {isLoadingData || !isDataReady ? (
+          <p>로딩 중...</p>
+        ) : sortedSummaries.length === 0 || Object.keys(allOrdersMap).length === 0 ? (
           <p>주문 내역이 없습니다.</p>
         ) : (
           sortedSummaries.map((summary: any) => {
@@ -89,9 +94,7 @@ const OrderList: React.FC<OrderListProps> = ({
                       className={`flex justify-between p-2 border-b border-gray-300 cursor-pointer hover:bg-gray-100 ${
                         selectedOrderId === order.orderId ? "bg-gray-100" : ""
                       }`}
-                      onClick={() =>
-                        setSelectedOrder(order.orderId, summary.date)
-                      }
+                      onClick={() => setSelectedOrder(order.orderId, summary.date)}
                     >
                       <div className="flex items-center">
                         {order.paymentType === "CARD" ? (
