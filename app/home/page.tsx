@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import axiosInstance from "../../lib/axiosInstance";
 import { motion, AnimatePresence } from "framer-motion";
 import Modal from "../../components/Modal";
+import AlertModal from "@/components/AlertModal";
+import useAlertModal from "@/hooks/useAlertModal";
 
 interface Store {
   storeId: string;
@@ -26,7 +28,9 @@ export default function HomePage() {
   const [enteredPassword, setEnteredPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [showStartModal, setShowStartModal] = useState(false);
-  const [showAlreadyOpenModal, setShowAlreadyOpenModal] = useState(false);
+
+  // useAlertModal 훅 사용
+  const { alertState, showAlert, closeAlert } = useAlertModal();
 
   useEffect(() => {
     const checkAndRefreshToken = async () => {
@@ -46,7 +50,7 @@ export default function HomePage() {
           handleLogout();
         }
       } else if (!accessToken && !refreshToken) {
-        alert("세션이 만료되었습니다. 다시 로그인해주세요.");
+        showAlert("세션이 만료되었습니다. 다시 로그인해주세요.", "warning");
         handleLogout();
       }
     };
@@ -118,6 +122,11 @@ export default function HomePage() {
     setLoginError("");
   };
 
+  const handleCloseAlreadyOpenModal = () => {
+    closeAlert();
+    router.push("/pos"); // /pos로 이동
+  };
+
   const handleConfirmClick = async () => {
     if (!enteredPassword || !selectedStore) return;
 
@@ -161,11 +170,14 @@ export default function HomePage() {
 
       setShowStoreModal(false);
       if (isStoreAlreadyOpen) {
-        setShowAlreadyOpenModal(true); // 이미 오픈된 경우 모달 표시
-        // 이미 오픈된 경우 /pos로 이동 - 2초로 변경
+        // AlertModal 사용
+        showAlert("이미 오픈 되어있는 매장이 있습니다.", "warning", false);
+
+        // 2초 후 자동으로 POS 페이지로 이동
         setTimeout(() => {
+          closeAlert();
           router.push("/pos");
-        }, 2000); // 모달을 2초 동안 보여주고 이동
+        }, 3000);
       } else {
         setShowStartModal(true); // 오픈되지 않은 경우 시작 모달 표시
       }
@@ -187,12 +199,8 @@ export default function HomePage() {
       router.push("/pos");
     } catch (error) {
       console.error("Error opening store:", error);
+      showAlert("매장 오픈 중 오류가 발생했습니다.", "error");
     }
-  };
-
-  const handleCloseAlreadyOpenModal = () => {
-    setShowAlreadyOpenModal(false);
-    router.push("/pos"); // /pos로 이동
   };
 
   const currentTime = new Date().toLocaleTimeString();
@@ -240,44 +248,25 @@ export default function HomePage() {
       >
         Logout
       </button>
-
-      <AnimatePresence>
-        {showModal && (
-          <motion.div
-            className="fixed inset-0 flex items-center justify-center bg-transparent backdrop-blur-lg"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.7, ease: "easeInOut" }}
-          >
-            <motion.div
-              className="relative w-[340px] h-[200px] rounded-lg shadow-lg border border-white/30 bg-transparent"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ duration: 0.7, ease: "easeInOut" }}
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)}>
+        <div className="relative z-10 flex flex-col items-center justify-center h-full text-[#555]">
+          <h1 className="text-md">로그아웃 하시겠습니까?</h1>
+          <div className="flex space-x-4 mt-6">
+            <button
+              onClick={handleLogout}
+              className="px-8 bg-blue-500 text-white rounded hover:bg-blue-400 transition"
             >
-              <div className="relative z-10 flex flex-col items-center justify-center h-full text-[#555]">
-                <h1 className="text-md font-light">Logout</h1>
-                <div className="flex space-x-4 mt-6">
-                  <button
-                    onClick={handleLogout}
-                    className="px-7 border border-gray-400 rounded hover:bg-gray-400 transition"
-                  >
-                    o
-                  </button>
-                  <button
-                    onClick={() => setShowModal(false)}
-                    className="px-7 border border-gray-400 rounded hover:bg-gray-400 transition"
-                  >
-                    x
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              예
+            </button>
+            <button
+              onClick={() => setShowModal(false)}
+              className="px-4 border border-gray-400 rounded hover:bg-gray-400 transition"
+            >
+              아니오
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <AnimatePresence>
         {showStoreModal && (
@@ -286,7 +275,7 @@ export default function HomePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.7, ease: "easeInOut" }}
+            transition={{ duration: 0.5, ease: "easeInOut" }}
             onClick={() => setShowStoreModal(false)}
           >
             <motion.div
@@ -294,7 +283,7 @@ export default function HomePage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ duration: 0.7, ease: "easeInOut" }}
+              transition={{ duration: 0.5, ease: "easeInOut" }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-4 mt-12 text-center text-gray-800 h-10 flex items-center border-b border-gray-300 justify-center">
@@ -365,76 +354,35 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {showStartModal && (
-          <motion.div
-            className="fixed inset-0 flex items-center justify-center bg-transparent backdrop-blur-lg"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.7, ease: "easeInOut" }}
-          >
-            <motion.div
-              className="relative w-[340px] h-[200px] rounded-lg shadow-lg border border-white/30 bg-white p-4"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ duration: 0.7, ease: "easeInOut" }}
+      <Modal isOpen={showStartModal} onClose={() => setShowStartModal(false)}>
+        <div className="flex flex-col items-center justify-center h-full text-gray-800">
+          <span className="text-lg mb-2">현재 시간: {currentTime}</span>
+          <span className="text-md mb-4">영업을 시작하시겠습니까?</span>
+          <div className="flex pt-1 space-x-4">
+            <button
+              onClick={handleStartBusiness}
+              className="px-9 text-white bg-blue-500 pt-1 rounded hover:bg-blue-400 transition"
             >
-              <div className="flex flex-col items-center justify-center h-full text-gray-800">
-                <span className="text-lg mb-2">현재 시간: {currentTime}</span>
-                <span className="text-md mb-4">영업을 시작하시겠습니까?</span>
-                <div className="flex space-x-4">
-                  <button
-                    onClick={handleStartBusiness}
-                    className="px-7 border border-gray-400 rounded hover:bg-gray-400 transition"
-                  >
-                    예
-                  </button>
-                  <button
-                    onClick={() => setShowStartModal(false)}
-                    className="px-7 border border-gray-400 rounded hover:bg-gray-400 transition"
-                  >
-                    아니오
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              예
+            </button>
+            <button
+              onClick={() => setShowStartModal(false)}
+              className="px-6 border border-gray-200 pt-1 rounded hover:bg-gray-100 transition"
+            >
+              아니오
+            </button>
+          </div>
+        </div>
+      </Modal>
 
-      <AnimatePresence>
-        {showAlreadyOpenModal && (
-          <motion.div
-            className="fixed inset-0 flex items-center justify-center bg-transparent backdrop-blur-lg z-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.7, ease: "easeInOut" }}
-          >
-            <motion.div
-              className="relative w-[340px] h-[200px] rounded-lg shadow-lg border border-white/30 bg-white p-4"
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              transition={{ duration: 0.7, ease: "easeInOut" }}
-            >
-              <div className="flex flex-col items-center justify-center h-full text-gray-800">
-                <span className="text-lg mb-4">
-                  이미 오픈 되어있는 매장이 있습니다.
-                </span>
-                <button
-                  onClick={handleCloseAlreadyOpenModal}
-                  className="px-7 py-2 border border-gray-400 rounded hover:bg-gray-400 transition"
-                >
-                  확인
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* AlertModal 사용 */}
+      <AlertModal
+        isOpen={alertState.isOpen}
+        onClose={closeAlert}
+        message={alertState.message}
+        type={alertState.type}
+        confirmText={alertState.confirmText}
+      />
     </div>
   );
 }

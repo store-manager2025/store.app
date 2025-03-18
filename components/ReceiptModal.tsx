@@ -28,7 +28,7 @@ export default function Modal({ isOpen, onClose, children }: ModalProps) {
       onClick={handleOverlayClick}
     >
       <motion.div
-        className="relative w-[540px] h-[200px] rounded-lg shadow-lg border border-white/30 bg-white p-4"
+        className="relative w-auto h-auto rounded-lg shadow-lg border border-white/30 bg-white p-4"
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}

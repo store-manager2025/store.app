@@ -5,6 +5,7 @@ import { useFormStore } from "@/store/formStore";
 import axiosInstance from "@/lib/axiosInstance";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
+import ReceiptModal from "@/components/ReceiptModal";
 import { Archive } from "lucide-react";
 import { format } from "date-fns";
 import OrderList from "@/components/OrderList";
@@ -417,18 +418,19 @@ export default function OrderPage() {
                 setIsRefundModalOpen={setIsRefundModalOpen}
               />
             </div>
+            
             <Modal isOpen={isRefundModalOpen} onClose={() => setIsRefundModalOpen(false)}>
               <div className="text-center">
                 <p className="mb-4">결제를 취소하시겠습니까?</p>
                 <div className="flex justify-center gap-4">
                   <button
-                    className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                    className="bg-red-500 text-white px-8 py-1 rounded hover:bg-red-600"
                     onClick={handleRefund}
                   >
                     예
                   </button>
                   <button
-                    className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+                    className="bg-gray-300 px-4 py-1 rounded hover:bg-gray-400"
                     onClick={() => setIsRefundModalOpen(false)}
                   >
                     아니오
@@ -436,9 +438,9 @@ export default function OrderPage() {
                 </div>
               </div>
             </Modal>
-            <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)}>
+            <ReceiptModal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)}>
               <div className="font-mono whitespace-pre text-sm">{asciiReceipt}</div>
-            </Modal>
+            </ReceiptModal>
           </>
         )}
         <div className="flex flex-col p-4 items-center justify-between">

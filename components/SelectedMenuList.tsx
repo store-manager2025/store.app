@@ -1,9 +1,12 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { Trash2, AlertCircle, CheckCircle, XCircle } from "lucide-react";
 import axiosInstance from "@/lib/axiosInstance";
 import { usePosStore, SelectedItem } from "../store/usePosStore";
+import { motion, AnimatePresence } from "framer-motion";
+import AlertModal from "@/components/AlertModal";
+import useAlertModal from "@/hooks/useAlertModal";
 
 interface SwipeableItemProps {
   item: SelectedItem;
@@ -11,6 +14,7 @@ interface SwipeableItemProps {
 }
 
 function SwipeableItem({ item, onDelete }: SwipeableItemProps) {
+  // 기존 SwipeableItem 코드 유지
   const [translateX, setTranslateX] = useState(0);
   const [startX, setStartX] = useState<number | null>(null);
   const [isSwiped, setIsSwiped] = useState(false);
@@ -99,11 +103,14 @@ export default function SelectedMenuList() {
     setSelectedItems,
   } = usePosStore();
 
+  // useAlertModal 훅 사용
+  const { alertState, showAlert, closeAlert } = useAlertModal();
+
   const totalPrice = selectedItems.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0
   );
-
+  
   useEffect(() => {
     const fetchOrderDetails = async () => {
       if (orderId) {
@@ -119,15 +126,15 @@ export default function SelectedMenuList() {
               menuName: menu.menuName,
               price: menu.totalPrice / menu.totalCount,
               quantity: menu.totalCount,
-              menuId: cachedMenu ? cachedMenu.menuId : null, // menuCache에서 올바른 menuId 매핑
-              orderMenuId: menu.id || null, // orderMenuId는 별도로 저장
+              menuId: cachedMenu ? cachedMenu.menuId : null,
+              orderMenuId: menu.id || null,
             };
           });
           console.log("formattedItems: ", formattedItems);
           // setSelectedItems(formattedItems);
         } catch (error) {
           console.error("주문 상세 조회 실패:", error);
-          alert("주문 상세 정보를 불러오는데 실패했습니다.");
+          showAlert("주문 상세 정보를 불러오는데 실패했습니다.", "error");
         }
       }
     };
@@ -144,12 +151,12 @@ export default function SelectedMenuList() {
 
   const createOrder = async () => {
     if (!storeId || !placeId || selectedItems.length === 0) {
-      alert("스토어, 테이블, 메뉴를 선택해주세요.");
+      showAlert("스토어, 테이블, 메뉴를 선택해주세요.", "warning");
       return null;
     }
     const validItems = selectedItems.filter((item) => item.menuId != null);
     if (validItems.length === 0) {
-      alert("유효한 메뉴 항목이 없습니다.");
+      showAlert("유효한 메뉴 항목이 없습니다.", "warning");
       return null;
     }
     const orderRequest = {
@@ -162,26 +169,26 @@ export default function SelectedMenuList() {
     };
     try {
       await axiosInstance.post("/api/orders", orderRequest);
-      await fetchUnpaidOrderByPlace(placeId); // 주문 생성 후 최신 데이터 가져오기
+      await fetchUnpaidOrderByPlace(placeId);
       const newOrderId = usePosStore.getState().orderId;
-      clearItems(); // 주문 생성 후 selectedItems 초기화
+      clearItems();
       return newOrderId;
     } catch (error) {
       console.error("주문 생성 실패:", error);
-      alert("주문 생성 중 오류가 발생했습니다.");
+      showAlert("주문 생성 중 오류가 발생했습니다.", "error");
       return null;
     }
   };
 
   const handleOrderClick = async () => {
     if (!storeId || !placeId || selectedItems.length === 0) {
-      alert("메뉴를 선택해주세요.");
+      showAlert("메뉴를 선택해주세요.", "warning");
       return;
     }
   
     const validItems = selectedItems.filter((item) => item.menuId != null);
     if (validItems.length === 0) {
-      alert("유효한 메뉴 항목이 없습니다.");
+      showAlert("유효한 메뉴 항목이 없습니다.", "warning");
       return;
     }
   
@@ -193,12 +200,12 @@ export default function SelectedMenuList() {
     if (!realOrderId) {
       realOrderId = await createOrder();
       if (!realOrderId) return;
-      alert("주문이 완료되었습니다.");
+      showAlert("주문이 완료되었습니다.", "success");
       // 상태 초기화 및 UI 반영 보장
       setOrderId(null);
       setPlaceId(null);
       setTableName("");
-      clearItems(); // 추가 호출로 확실히 초기화
+      clearItems();
       console.debug("[handleOrderClick] 주문 완료 후 selectedItems:", usePosStore.getState().selectedItems);
       return;
     }
@@ -236,13 +243,13 @@ export default function SelectedMenuList() {
       try {
         await axiosInstance.post(`/api/orders/add/${realOrderId}`, addRequest);
         await fetchUnpaidOrderByPlace(placeId);
-        alert("추가 주문이 완료되었습니다.");
+        showAlert("추가 주문이 완료되었습니다.", "success");
       } catch (error: any) {
         if (error.response?.status === 404) {
           setOrderId(null);
           const newOrderId = await createOrder();
           if (newOrderId) {
-            alert("주문이 완료되었습니다.");
+            showAlert("주문이 완료되었습니다.", "success");
             setOrderId(null);
             setPlaceId(null);
             setTableName("");
@@ -251,7 +258,7 @@ export default function SelectedMenuList() {
           }
         } else {
           console.error("추가 주문 실패:", error);
-          alert("추가 주문에 실패했습니다.");
+          showAlert("추가 주문에 실패했습니다.", "error");
         }
       }
     }
@@ -268,25 +275,25 @@ export default function SelectedMenuList() {
           });
         }
         await fetchUnpaidOrderByPlace(placeId);
-        alert("삭제가 반영되었습니다.");
+        showAlert("삭제가 반영되었습니다.", "success");
       } catch (error) {
         console.error("삭제 요청 실패:", error);
-        alert("삭제 요청이 실패했습니다. 서버 상태를 확인해주세요.");
+        showAlert("삭제 요청이 실패했습니다. 서버 상태를 확인해주세요.", "error");
       }
     }
   
     if (itemsToAdd.length === 0 && itemsToRemove.length === 0) {
-      alert("변경 사항이 없습니다.");
+      showAlert("변경 사항이 없습니다.", "info");
     }
   
     // 6) 모든 경우에 대해 selectedItems 초기화
     clearItems();
-console.debug("[handleOrderClick] selectedItems 초기화 후:", usePosStore.getState().selectedItems);
+    console.debug("[handleOrderClick] selectedItems 초기화 후:", usePosStore.getState().selectedItems);
   };
 
   const handleMenuDelete = async (item: SelectedItem) => {
     if (!item.menuId) {
-      alert(`삭제할 메뉴의 ID가 누락되었습니다: ${item.menuName}`);
+      showAlert(`삭제할 메뉴의 ID가 누락되었습니다: ${item.menuName}`, "error");
       return;
     }
   
@@ -303,7 +310,7 @@ console.debug("[handleOrderClick] selectedItems 초기화 후:", usePosStore.get
       );
       
       if (!orderItem || !orderItem.orderMenuId) {
-        alert(`서버에서 해당 주문 항목을 찾을 수 없습니다: ${item.menuName}`);
+        showAlert(`서버에서 해당 주문 항목을 찾을 수 없습니다: ${item.menuName}`, "error");
         removeItem(item.menuName);
         return;
       }
@@ -341,7 +348,7 @@ console.debug("[handleOrderClick] selectedItems 초기화 후:", usePosStore.get
           clearItems();
           
           // 사용자에게 알림
-          alert("주문의 모든 항목이 삭제되어 주문이 취소되었습니다.");
+          showAlert("주문의 모든 항목이 삭제되어 주문이 취소되었습니다.", "success");
         } catch (deleteErr) {
           console.error("전체 주문 삭제 실패:", deleteErr);
           
@@ -396,15 +403,14 @@ console.debug("[handleOrderClick] selectedItems 초기화 후:", usePosStore.get
         setSelectedItems([]);
         clearItems();
       } else {
-        alert("메뉴 삭제에 실패했습니다. 서버 오류가 발생했습니다.");
+        showAlert("메뉴 삭제에 실패했습니다. 서버 오류가 발생했습니다.", "error");
       }
     }
   };
-  
 
   const handlePaymentClick = async () => {
     if (!placeId) {
-      alert("테이블을 선택해주세요.");
+      showAlert("테이블을 선택해주세요.", "warning");
       return;
     }
     let currentOrderId = orderId;
@@ -416,7 +422,7 @@ console.debug("[handleOrderClick] selectedItems 초기화 후:", usePosStore.get
       isNewOrder = 1;
     }
     if (!currentOrderId) {
-      alert("결제할 주문이 없습니다.");
+      showAlert("결제할 주문이 없습니다.", "warning");
       return;
     }
     const searchParams = new URLSearchParams();
@@ -429,7 +435,7 @@ console.debug("[handleOrderClick] selectedItems 초기화 후:", usePosStore.get
       router.push(paymentUrl);
     } catch (error) {
       console.error("router.push 실패:", error);
-      alert("페이지 이동 중 오류가 발생했습니다.");
+      showAlert("페이지 이동 중 오류가 발생했습니다.", "error");
     }
   };
 
@@ -467,6 +473,15 @@ console.debug("[handleOrderClick] selectedItems 초기화 후:", usePosStore.get
           </button>
         </div>
       </div>
+
+      {/* 알림 모달 */}
+      <AlertModal
+        isOpen={alertState.isOpen}
+        onClose={closeAlert}
+        message={alertState.message}
+        type={alertState.type}
+        confirmText={alertState.confirmText}
+      />
     </div>
   );
 }

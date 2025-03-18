@@ -13,10 +13,11 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import axiosInstance from "../../lib/axiosInstance";
 import { useFormStore } from "@/store/formStore";
+import Modal from "@/components/Modal";
 
 export default function SettingPage() {
   const router = useRouter();
-  const { storeId, setStoreId } = useFormStore(); 
+  const { storeId, setStoreId } = useFormStore();
 
   // 메인 UI (Heading + 6개 버튼) 표시 여부
   const [showMainUI, setShowMainUI] = useState(true);
@@ -30,7 +31,8 @@ export default function SettingPage() {
   // 영업 마감 상태
   const [showCloseModal, setShowCloseModal] = useState(false);
   // 미완료 주문 알림 모달 상태
-  const [showIncompleteOrderModal, setShowIncompleteOrderModal] = useState(false);
+  const [showIncompleteOrderModal, setShowIncompleteOrderModal] =
+    useState(false);
   // 미완료 주문 메시지
   const [incompleteOrderMessage, setIncompleteOrderMessage] = useState("");
 
@@ -58,16 +60,18 @@ export default function SettingPage() {
     try {
       const response = await axiosInstance.post(`/api/times/close/${storeId}`);
       console.log("response for close: ", response);
-      
+
       // 응답에 message가 있는지 확인 (미완료 주문이 있는 경우)
-      if (response.data && response.data.message && 
-          response.data.message.includes("아직 완료되지 않은 주문이 존재합니다")) {
-        
+      if (
+        response.data &&
+        response.data.message &&
+        response.data.message.includes("아직 완료되지 않은 주문이 존재합니다")
+      ) {
         // 미완료 주문 메시지 설정 및 모달 표시
         setIncompleteOrderMessage(response.data.message);
         setShowIncompleteOrderModal(true);
         setShowCloseModal(false);
-        
+
         // 이 경우 홈으로 이동하지 않음
       } else {
         // 정상적으로 마감된 경우
@@ -97,11 +101,11 @@ export default function SettingPage() {
 
   const handleOrdersClick = () => {
     router.push("setting/orders");
-  }
+  };
 
   const handleTransferClick = () => {
     router.push("/home");
-  }
+  };
 
   /**
    * 뒤로가기(상단 화살표) 클릭 시 동작
@@ -144,7 +148,6 @@ export default function SettingPage() {
   return (
     <div className="flex items-center font-mono justify-center h-screen w-screen relative">
       <div className="relative w-4/5 h-4/5 bg-white bg-opacity-20 border border-gray-400 rounded-2xl p-6 flex flex-col justify-center items-center">
-        
         {/* 왼쪽 상단으로 돌아가기(또는 메인으로 복귀) 버튼 */}
         <button
           onClick={handleBackClick}
@@ -168,7 +171,7 @@ export default function SettingPage() {
             {/* 6개 버튼 */}
             <div className="grid grid-cols-2 gap-8 w-full relative">
               <button
-              onClick={handleOrdersClick}
+                onClick={handleOrdersClick}
                 className="w-80 h-20 font-bold text-left flex flex-row items-center bg-transparent text-gray-700 border border-gray-500 hover:text-white hover:bg-[#333] rounded-lg shadow-sm"
               >
                 <ShoppingBag className="w-6 h-6 mr-2 ml-10" />
@@ -217,7 +220,9 @@ export default function SettingPage() {
         {/* Edit Items & Edit Categories 버튼 */}
         {showEditUI && (
           <div
-            className={`fade-in ${fadeOutEditUI ? "fade-out fade-out-active" : "fade-in-active"}`}
+            className={`fade-in ${
+              fadeOutEditUI ? "fade-out fade-out-active" : "fade-in-active"
+            }`}
             style={{
               position: "absolute",
               top: "50%",
@@ -243,43 +248,29 @@ export default function SettingPage() {
         )}
 
         {/* Close Business Confirmation Modal */}
-        <AnimatePresence>
-          {showCloseModal && (
-            <motion.div
-              className="fixed inset-0 flex items-center justify-center bg-transparent backdrop-blur-lg z-50"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <motion.div
-                className="relative w-[340px] h-[200px] rounded-lg shadow-lg border border-white/30 bg-white p-4"
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                transition={{ duration: 0.5 }}
+
+        {showCloseModal && (
+          <Modal
+            isOpen={showCloseModal}
+            onClose={() => setShowCloseModal(false)}
+          >
+            <span className="text-md mb-4">영업을 마감하시겠습니까?</span>
+            <div className="flex space-x-4">
+              <button
+                onClick={handleCloseBusiness}
+                className="px-8 text-white bg-blue-500 rounded hover:bg-blue-300 transition"
               >
-                <div className="flex flex-col items-center justify-center h-full text-gray-800">
-                  <span className="text-md mb-4">영업을 마감하시겠습니까?</span>
-                  <div className="flex space-x-4">
-                    <button
-                      onClick={handleCloseBusiness}
-                      className="px-7 border border-gray-400 rounded hover:bg-gray-400 transition"
-                    >
-                      예
-                    </button>
-                    <button
-                      onClick={() => setShowCloseModal(false)}
-                      className="px-7 border border-gray-400 rounded hover:bg-gray-400 transition"
-                    >
-                      아니오
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                예
+              </button>
+              <button
+                onClick={() => setShowCloseModal(false)}
+                className="px-4 border border-gray-400 rounded hover:bg-gray-400 transition"
+              >
+                아니오
+              </button>
+            </div>
+          </Modal>
+        )}
 
         {/* Incomplete Order Alert Modal */}
         <AnimatePresence>
@@ -299,7 +290,9 @@ export default function SettingPage() {
                 transition={{ duration: 0.5, ease: "easeInOut" }}
               >
                 <div className="flex flex-col items-center justify-center h-full text-gray-800">
-                  <span className="text-lg font-medium mb-2 text-red-500">영업 마감 불가</span>
+                  <span className="text-lg font-medium mb-2 text-red-500">
+                    영업 마감 불가
+                  </span>
                   <span className="text-md mb-6 text-center">
                     {incompleteOrderMessage}
                   </span>

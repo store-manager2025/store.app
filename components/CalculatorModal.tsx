@@ -2,6 +2,7 @@
 
 import { useFormStore } from "@/store/formStore";
 import { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function CalculatorModal() {
   const { isCalculatorModalOpen, setCalculatorModalOpen } = useFormStore();
@@ -14,7 +15,11 @@ export default function CalculatorModal() {
     y: window.innerHeight / 2 - 350,
   });
   const modalRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ startX: number; startY: number; isDragging: boolean }>({
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    isDragging: boolean;
+  }>({
     startX: 0,
     startY: 0,
     isDragging: false,
@@ -130,88 +135,139 @@ export default function CalculatorModal() {
   if (!isCalculatorModalOpen) return null;
 
   return (
-    <div
-      ref={modalRef}
-      className="absolute cursor-grabbing bg-gray-700 rounded-lg shadow-lg p-4 w-80 z-50"
-      style={{
-        transform: `translate(${position.x}px, ${position.y}px)`,
-        transition: "transform 0.1s ease-out", // 부드러운 이동 효과
-      }}
-      onMouseDown={handleMouseDown}
-    >
-      <h2 className="text-lg text-white font-medium mb-2 cursor-move"></h2>
-      <div className="bg-gray-100 p-4 rounded-lg opacity-50 mb-4 text-right text-xl font-mono">
-        {display}
-      </div>
-      <div className="grid grid-cols-4 gap-2">
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={handleClearClick}>
-          C
-        </button>
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleOperatorClick("/")}>
-          ÷
-        </button>
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleOperatorClick("*")}>
-          ×
-        </button>
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleOperatorClick("-")}>
-          −
-        </button>
-
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleNumberClick("7")}>
-          7
-        </button>
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleNumberClick("8")}>
-          8
-        </button>
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleNumberClick("9")}>
-          9
-        </button>
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleOperatorClick("+")}>
-          +
-        </button>
-
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleNumberClick("4")}>
-          4
-        </button>
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleNumberClick("5")}>
-          5
-        </button>
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleNumberClick("6")}>
-          6
-        </button>
-        <button
-          className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200 row-span-2"
-          onClick={handleEqualsClick}
-        >
-          =
-        </button>
-
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleNumberClick("1")}>
-          1
-        </button>
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleNumberClick("2")}>
-          2
-        </button>
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleNumberClick("3")}>
-          3
-        </button>
-
-        <button
-          className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200 col-span-2"
-          onClick={() => handleNumberClick("0")}
-        >
-          0
-        </button>
-        <button className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200" onClick={() => handleNumberClick(".")}>
-          .
-        </button>
-      </div>
-      <button
-        className="bg-gray-200 rounded p-2 w-full mt-4"
-        onClick={() => setCalculatorModalOpen(false)}
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.5 }}
+        ref={modalRef}
+        className="absolute cursor-grabbing bg-gray-700 rounded-lg shadow-lg p-4 w-80 z-50"
+        style={{
+          transform: `translate(${position.x}px, ${position.y}px)`,
+          transition: "transform 0.1s ease-out", // 부드러운 이동 효과
+        }}
+        onMouseDown={handleMouseDown}
       >
-      Close
-      </button>
-    </div>
+        <h2 className="text-lg text-white font-medium mb-2 cursor-move"></h2>
+        <div className="bg-gray-100 p-4 rounded-lg opacity-50 mb-4 text-right text-xl font-mono">
+          {display}
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={handleClearClick}
+          >
+            C
+          </button>
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleOperatorClick("/")}
+          >
+            ÷
+          </button>
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleOperatorClick("*")}
+          >
+            ×
+          </button>
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleOperatorClick("-")}
+          >
+            −
+          </button>
+
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleNumberClick("7")}
+          >
+            7
+          </button>
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleNumberClick("8")}
+          >
+            8
+          </button>
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleNumberClick("9")}
+          >
+            9
+          </button>
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleOperatorClick("+")}
+          >
+            +
+          </button>
+
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleNumberClick("4")}
+          >
+            4
+          </button>
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleNumberClick("5")}
+          >
+            5
+          </button>
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleNumberClick("6")}
+          >
+            6
+          </button>
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200 row-span-2"
+            onClick={handleEqualsClick}
+          >
+            =
+          </button>
+
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleNumberClick("1")}
+          >
+            1
+          </button>
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleNumberClick("2")}
+          >
+            2
+          </button>
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleNumberClick("3")}
+          >
+            3
+          </button>
+
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200 col-span-2"
+            onClick={() => handleNumberClick("0")}
+          >
+            0
+          </button>
+          <button
+            className="bg-gray-100 rounded p-4 text-lg hover:bg-gray-200"
+            onClick={() => handleNumberClick(".")}
+          >
+            .
+          </button>
+        </div>
+        <button
+          className="bg-gray-200 rounded p-2 w-full mt-4"
+          onClick={() => setCalculatorModalOpen(false)}
+        >
+          Close
+        </button>
+      </motion.div>
+    </AnimatePresence>
   );
 }
