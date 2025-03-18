@@ -296,10 +296,12 @@ console.debug("[handleOrderClick] selectedItems 초기화 후:", usePosStore.get
     }
   
     try {
+      // 먼저 현재 주문 상세 정보를 가져옴
       const { data } = await axiosInstance.get(`/api/orders/detail/${orderId}`);
       const orderItem = data.menuDetail.find(
         (menu: any) => menu.menuName === item.menuName
       );
+      
       if (!orderItem || !orderItem.orderMenuId) {
         alert(`서버에서 해당 주문 항목을 찾을 수 없습니다: ${item.menuName}`);
         removeItem(item.menuName);
@@ -308,46 +310,97 @@ console.debug("[handleOrderClick] selectedItems 초기화 후:", usePosStore.get
   
       const orderMenuId = orderItem.orderMenuId;
       const refundData = {
-        menuId: orderItem.menuId, // menuId 사용
+        menuId: orderItem.menuId,
         quantity: item.quantity,
       };
+      
+      // 마지막 메뉴인지 확인
+      const isLastMenuItem = data.menuDetail.length === 1;
+      
       console.debug("[handleMenuDelete] 삭제 요청 데이터:", refundData);
-      const response = await axiosInstance.delete(
-        `/api/orders/${orderMenuId}`,
-        {
-          data: refundData,
-          headers: { "Content-Type": "application/json" },
+      console.debug("현재 메뉴가 마지막 메뉴인지:", isLastMenuItem);
+      
+      if (isLastMenuItem) {
+        // 마지막 메뉴인 경우 전체 주문을 삭제
+        try {
+          // 먼저 개별 메뉴 삭제
+          await axiosInstance.delete(`/api/orders/${orderMenuId}`, {
+            data: refundData,
+            headers: { "Content-Type": "application/json" },
+          });
+          
+          console.debug(`마지막 메뉴 ${item.menuName} 삭제 완료, 전체 주문 삭제 시도...`);
+          
+          // 전체 주문 삭제 요청
+          await axiosInstance.delete(`/api/orders/all/${orderId}`);
+          console.debug(`주문 ID ${orderId} 완전히 삭제됨`);
+          
+          // 상태 초기화
+          setOrderId(null);
+          setSelectedItems([]);
+          clearItems();
+          
+          // 사용자에게 알림
+          alert("주문의 모든 항목이 삭제되어 주문이 취소되었습니다.");
+        } catch (deleteErr) {
+          console.error("전체 주문 삭제 실패:", deleteErr);
+          
+          // 전체 주문 삭제 실패했더라도 UI에서는 초기화
+          setOrderId(null);
+          setSelectedItems([]);
+          clearItems();
         }
-      );
-      console.debug(`메뉴 ${item.menuName} 삭제 완료:`, response.data);
+      } else {
+        // 마지막 메뉴가 아닌 경우 개별 메뉴만 삭제
+        const response = await axiosInstance.delete(
+          `/api/orders/${orderMenuId}`,
+          {
+            data: refundData,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+        console.debug(`메뉴 ${item.menuName} 삭제 완료:`, response.data);
   
-      const { data: updatedData } = await axiosInstance.get(
-        `/api/orders/detail/${orderId}`
-      );
-      const formattedItems = updatedData.menuDetail.map((menu: any) => ({
-        menuName: menu.menuName,
-        price: menu.totalPrice / menu.totalCount,
-        quantity: menu.totalCount,
-        menuId: menu.menuId, // menuId로 수정
-      }));
-      setSelectedItems(formattedItems);
+        try {
+          // 주문 상세 정보를 다시 가져와서 UI 업데이트
+          const { data: updatedData } = await axiosInstance.get(
+            `/api/orders/detail/${orderId}`
+          );
+          
+          const formattedItems = updatedData.menuDetail.map((menu: any) => ({
+            menuName: menu.menuName,
+            price: menu.totalPrice / menu.totalCount,
+            quantity: menu.totalCount,
+            menuId: menu.menuId,
+            orderMenuId: menu.orderMenuId || null,
+          }));
+          setSelectedItems(formattedItems);
+        } catch (err: any) {
+          // 주문 상세 정보를 가져오는데 실패한 경우 (404 등)
+          console.error("주문 상세 정보 조회 실패:", err);
+          if (err.response?.status === 404) {
+            // 주문이 이미 없는 경우 상태 초기화
+            setOrderId(null);
+            setSelectedItems([]);
+            clearItems();
+          }
+        }
+      }
     } catch (err: any) {
       console.error("메뉴 삭제 실패:", err);
       if (err.response?.status === 404) {
         removeItem(item.menuName);
-        try {
-          await axiosInstance.get(`/api/orders/detail/${orderId}`);
-        } catch (checkErr: any) {
-          if (checkErr.response?.status === 404) {
-            setOrderId(null);
-            setSelectedItems([]);
-          }
-        }
+        
+        // 주문 자체가 이미 없는 경우
+        setOrderId(null);
+        setSelectedItems([]);
+        clearItems();
       } else {
         alert("메뉴 삭제에 실패했습니다. 서버 오류가 발생했습니다.");
       }
     }
   };
+  
 
   const handlePaymentClick = async () => {
     if (!placeId) {

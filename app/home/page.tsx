@@ -4,6 +4,8 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axiosInstance from "../../lib/axiosInstance";
 import { motion, AnimatePresence } from "framer-motion";
+import Modal from "../../components/Modal";
+import { isSameDay, parseISO } from "date-fns";
 
 interface Store {
   storeId: string;
@@ -13,31 +15,27 @@ interface Store {
 export default function HomePage() {
   const router = useRouter();
 
-  // 기존 로그아웃 모달 상태
   const [showModal, setShowModal] = useState(false);
-  // 모든 스토어 객체 배열
   const [stores, setStores] = useState<Store[]>([]);
-  // 키패드 모달에서 선택된 스토어
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
-  // 스토어 로그인(비밀번호 입력) 모달 상태 및 입력된 숫자 문자열
   const [showStoreModal, setShowStoreModal] = useState(false);
   const [enteredPassword, setEnteredPassword] = useState("");
-  // 로그인 에러 메시지 상태 (비밀번호 틀렸을 때 사용)
   const [loginError, setLoginError] = useState("");
-  // 영업 개시 상태
   const [showStartModal, setShowStartModal] = useState(false);
+  const [showAlreadyOpenModal, setShowAlreadyOpenModal] = useState(false);
 
   useEffect(() => {
     const checkAndRefreshToken = async () => {
       const accessToken = localStorage.getItem("accessToken");
       const refreshToken = localStorage.getItem("refreshToken");
-      
+
       if (!accessToken && refreshToken) {
         try {
-          const response = await axiosInstance.post("/api/auth/refresh", { refreshToken });
+          const response = await axiosInstance.post("/api/auth/refresh", {
+            refreshToken,
+          });
           localStorage.setItem("accessToken", response.data.accessToken);
           localStorage.setItem("refreshToken", response.data.refreshToken);
-          // 토큰 재발급 후 스토어 데이터 강제 재조회
           refetchStores();
         } catch (error) {
           console.error("Token refresh failed:", error);
@@ -51,7 +49,6 @@ export default function HomePage() {
     checkAndRefreshToken();
   }, []);
 
-  // 스토어 목록 조회 (API 응답이 배열로 반환된다고 가정)
   useEffect(() => {
     const fetchStores = async () => {
       const accessToken = localStorage.getItem("accessToken");
@@ -73,13 +70,14 @@ export default function HomePage() {
     } catch (error) {
       console.error("Logout error: ", error);
     } finally {
-      // 모든 localStorage 항목 제거
       localStorage.clear();
+      // 쿠키 삭제
+      document.cookie =
+        "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
       router.push("/");
     }
   };
 
-  // 플러스 버튼 클릭 -> 매장 생성 페이지 이동
   const handleGoCreate = () => {
     router.push("/create");
   };
@@ -93,7 +91,6 @@ export default function HomePage() {
     }
   };
 
-  // 스토어 버튼 클릭 시 해당 스토어에 대해 비밀번호 입력 모달 표시
   const handleStoreButtonClick = (store: Store) => {
     setEnteredPassword("");
     setLoginError("");
@@ -101,21 +98,17 @@ export default function HomePage() {
     setShowStoreModal(true);
   };
 
-  // 숫자키 입력 (키패드의 숫자 버튼)
   const handleNumberClick = (num: string) => {
     if (loginError) {
-      // 에러 메시지가 있다면 지우고 새로 입력 시작
       setLoginError("");
       setEnteredPassword("");
     }
 
-    // 입력된 비밀번호가 4자리 이상이면 추가 입력 방지
     if (enteredPassword.length < 4) {
       setEnteredPassword((prev) => prev + num);
     }
   };
 
-  // 입력 초기화 (“지움” 버튼)
   const handleClearClick = () => {
     setEnteredPassword("");
     setLoginError("");
@@ -123,30 +116,56 @@ export default function HomePage() {
 
   const handleConfirmClick = async () => {
     if (!enteredPassword || !selectedStore) return;
+
     try {
       const response = await axiosInstance.post("/api/stores/login", {
         storeId: selectedStore.storeId,
         password: enteredPassword,
       });
       console.log("Login response:", response.data);
-  
-      // 스토어 정보 처리
+
       const { storeId } = response.data;
       if (!storeId) {
         throw new Error("스토어 정보가 응답에 포함되지 않았습니다.");
       }
-  
-      // 기존 토큰 유지, 스토어 ID만 업데이트
+
       localStorage.setItem("currentStoreId", storeId.toString());
-  
+
       console.log("Store ID saved:", {
         storeId: localStorage.getItem("currentStoreId"),
         accessToken: localStorage.getItem("accessToken"),
         refreshToken: localStorage.getItem("refreshToken"),
       });
-  
+
+      // 운영 시간 데이터 가져오기
+      const operatingTimesResponse = await axiosInstance.get(
+        "http://localhost:8383/api/times/all-info"
+      );
+      const operatingTimes = operatingTimesResponse.data;
+
+      console.log("Operating Times:", operatingTimes); // 디버깅 로그
+
+      // 운영 시간 확인 - 단순화된 로직으로 변경
+      const isStoreAlreadyOpen = operatingTimes.some((time) => {
+        // 여기서 storeId가 일치하고 closedAt이 null인 매장이 있으면 true 반환
+        return (
+          time.storeId.toString() === storeId.toString() &&
+          time.closedAt === null
+        );
+      });
+
+      console.log("Is Store Already Open:", isStoreAlreadyOpen); // 디버깅 로그
+
       setShowStoreModal(false);
-      setShowStartModal(true);
+      if (isStoreAlreadyOpen) {
+        setShowAlreadyOpenModal(true); // 이미 오픈된 경우 모달 표시
+        // 이미 오픈된 경우 /pos로 이동 - 2초로 변경
+        setTimeout(() => {
+          router.push("/pos");
+        }, 2000); // 모달을 2초 동안 보여주고 이동
+      } else {
+        setShowStartModal(true); // 오픈되지 않은 경우 시작 모달 표시
+      }
     } catch (error: any) {
       console.error("로그인 요청 중 오류 발생:", error);
       if (error.response?.status === 401) {
@@ -168,11 +187,15 @@ export default function HomePage() {
     }
   };
 
+  const handleCloseAlreadyOpenModal = () => {
+    setShowAlreadyOpenModal(false);
+    router.push("/pos"); // /pos로 이동
+  };
+
   const currentTime = new Date().toLocaleTimeString();
-  
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 relative">
-      {/* 모든 스토어와 플러스 버튼을 한 행에 3개씩 그리드로 표시 */}
       <div
         className={`grid ${
           stores.length <= 1 ? "grid-cols-1" : "grid-cols-3"
@@ -187,7 +210,6 @@ export default function HomePage() {
             <span className="text-lg font-bold">{store.storeName}</span>
           </button>
         ))}
-        {/* 플러스 버튼 */}
         <button
           onClick={handleGoCreate}
           className="w-[100px] h-[100px] bg-gray-300 shadow-md text-white flex items-center justify-center rounded-[25px] hover:bg-gray-400 transition"
@@ -209,7 +231,6 @@ export default function HomePage() {
         </button>
       </div>
 
-      {/* 중앙 하단 로그아웃 버튼 */}
       <button
         onClick={() => setShowModal(true)}
         className="absolute bottom-8 left-1/2 transform -translate-x-1/2 border-none text-[#777] text-xs px-4 py-2 rounded hover:bg-gray-200/20 hover:text-gray-800 hover:backdrop-blur-3xl transition"
@@ -217,7 +238,6 @@ export default function HomePage() {
         Logout
       </button>
 
-      {/* 기존 로그아웃 모달 */}
       <AnimatePresence>
         {showModal && (
           <motion.div
@@ -225,14 +245,14 @@ export default function HomePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.7, ease: "easeInOut" }}
           >
             <motion.div
               className="relative w-[340px] h-[200px] rounded-lg shadow-lg border border-white/30 bg-transparent"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.7, ease: "easeInOut" }}
             >
               <div className="relative z-10 flex flex-col items-center justify-center h-full text-[#555]">
                 <h1 className="text-md font-light">Logout</h1>
@@ -256,7 +276,6 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* 스토어 로그인(비밀번호 입력) 모달 */}
       <AnimatePresence>
         {showStoreModal && (
           <motion.div
@@ -264,7 +283,7 @@ export default function HomePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.7, ease: "easeInOut" }}
             onClick={() => setShowStoreModal(false)}
           >
             <motion.div
@@ -272,10 +291,9 @@ export default function HomePage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.7, ease: "easeInOut" }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* 입력한 숫자 또는 에러 메시지 표시 영역 */}
               <div className="mb-4 mt-12 text-center text-gray-800 h-10 flex items-center border-b border-gray-300 justify-center">
                 {loginError ? (
                   <span className="text-xs text-red-500">{loginError}</span>
@@ -291,7 +309,6 @@ export default function HomePage() {
                 )}
               </div>
 
-              {/* 4행 3열 키패드 */}
               <div className="grid grid-cols-3 gap-2">
                 {[
                   "1",
@@ -320,10 +337,6 @@ export default function HomePage() {
                     <button
                       key={index}
                       onClick={handleClick}
-                      // style={{
-                      //   clipPath:
-                      //     "polygon(20% 0%,80% 0%,100% 50%,80% 100%,20% 100%,0% 50%)",
-                      // }}
                       className="flex items-center justify-center h-12 bg-[#f5f5f5] rounded hover:bg-gray-200 transition"
                     >
                       {key}
@@ -332,7 +345,6 @@ export default function HomePage() {
                 })}
               </div>
 
-              {/* 모달 하단 50px 푸터 */}
               <div className="h-[45px] mt-2 flex items-center justify-center mb-2">
                 <button
                   onClick={() => {
@@ -350,7 +362,6 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* Start Business Confirmation Modal */}
       <AnimatePresence>
         {showStartModal && (
           <motion.div
@@ -358,14 +369,14 @@ export default function HomePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.7, ease: "easeInOut" }}
           >
             <motion.div
               className="relative w-[340px] h-[200px] rounded-lg shadow-lg border border-white/30 bg-white p-4"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.7, ease: "easeInOut" }}
             >
               <div className="flex flex-col items-center justify-center h-full text-gray-800">
                 <span className="text-lg mb-2">현재 시간: {currentTime}</span>
@@ -384,6 +395,38 @@ export default function HomePage() {
                     아니오
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAlreadyOpenModal && (
+          <motion.div
+            className="fixed inset-0 flex items-center justify-center bg-transparent backdrop-blur-lg z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.7, ease: "easeInOut" }}
+          >
+            <motion.div
+              className="relative w-[340px] h-[200px] rounded-lg shadow-lg border border-white/30 bg-white p-4"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ duration: 0.7, ease: "easeInOut" }}
+            >
+              <div className="flex flex-col items-center justify-center h-full text-gray-800">
+                <span className="text-lg mb-4">
+                  이미 오픈 되어있는 매장이 있습니다.
+                </span>
+                <button
+                  onClick={handleCloseAlreadyOpenModal}
+                  className="px-7 py-2 border border-gray-400 rounded hover:bg-gray-400 transition"
+                >
+                  확인
+                </button>
               </div>
             </motion.div>
           </motion.div>
