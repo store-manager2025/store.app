@@ -107,7 +107,7 @@ export default function OrderPage() {
     setIsLoadingData(true);
     try {
       const tempOrdersMap: { [date: string]: Order[] } = {};
-      const preloadPromises = sortedSummaries.map(async (summary) => {
+      const preloadPromises = sortedSummaries.map(async (summary: OrderSummary) => {
         const date = summary.date;
         if (!tempOrdersMap[date] || tempOrdersMap[date].length === 0) {
           const status = isCancelled ? "cancelled" : "success";

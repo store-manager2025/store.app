@@ -8,6 +8,7 @@ import {
   getDay,
   addMonths,
   subMonths,
+  isSameDay, // 오늘 날짜 비교를 위해 추가
 } from "date-fns";
 import { OrderSummary } from "../types/order";
 
@@ -21,6 +22,7 @@ interface MonthlyCalendarProps {
 interface CalendarDay {
   day: number;
   sales: number;
+  date: Date; // 날짜 비교를 위해 Date 객체 추가
 }
 
 const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
@@ -32,7 +34,7 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
   const [monthlyData, setMonthlyData] = useState<Record<string, number>>({});
   const [totalMonthlySales, setTotalMonthlySales] = useState(0);
   const calendarRef = useRef<HTMLDivElement>(null);
-  const [cellSize, setCellSize] = useState<number>(70); // 초기 셀 크기 (기본값)
+  const [cellSize, setCellSize] = useState<number>(70);
 
   useEffect(() => {
     const start = startOfMonth(currentMonth);
@@ -53,15 +55,14 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
     setMonthlyData(data);
     setTotalMonthlySales(total);
 
-    // 컨테이너 크기에 따라 셀 크기 계산
     const updateCellSize = () => {
       if (calendarRef.current && calendarRef.current.parentElement) {
         const parentWidth = calendarRef.current.parentElement.clientWidth;
         const parentHeight = calendarRef.current.parentElement.clientHeight;
-        const availableWidth = parentWidth / 7; // 7일(일요일~토요일)
-        const availableHeight = (parentHeight - 80) / 6; // 헤더(80px 추정) 제외 후 6주
-        const newCellSize = Math.min(availableWidth, availableHeight) - 2; // 간격 고려
-        setCellSize(Math.max(40, newCellSize)); // 최소 40px로 제한
+        const availableWidth = parentWidth / 7;
+        const availableHeight = (parentHeight - 180) / 6;
+        const newCellSize = Math.min(availableWidth, availableHeight) - 2;
+        setCellSize(Math.max(40, newCellSize));
       }
     };
 
@@ -78,6 +79,7 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
     setCurrentMonth(addMonths(currentMonth, 1));
   };
 
+  const today = new Date(); // 오늘 날짜 가져오기
   const start = startOfMonth(currentMonth);
   const end = endOfMonth(currentMonth);
   const daysInMonth = eachDayOfInterval({ start, end });
@@ -89,7 +91,11 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
   }
   daysInMonth.forEach((day) => {
     const dateStr = format(day, "yyyy-MM-dd");
-    calendarGrid.push({ day: day.getDate(), sales: monthlyData[dateStr] || 0 });
+    calendarGrid.push({
+      day: day.getDate(),
+      sales: monthlyData[dateStr] || 0,
+      date: day, // 날짜 객체 추가
+    });
   });
   while (calendarGrid.length % 7 !== 0) {
     calendarGrid.push(null);
@@ -107,7 +113,6 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
       ref={calendarRef}
       className="border-r border-gray-400 shadow w-full h-full flex flex-col overflow-auto"
     >
-      {/* Monthly와 Total을 세로로 정렬하고, 오른쪽에 날짜 선택 버튼 배치 */}
       <div className="flex border-b border-gray-400 justify-between items-center">
         <div className="flex w-2/5 text-center border-r border-gray-400 flex-col">
           <div className="p-3 border-b border-gray-400 text-md">Monthly</div>
@@ -149,14 +154,16 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
             {week.map((day, dayIndex) => (
               <div
                 key={dayIndex}
-                className="p-1 border border-gray-200 bg-white flex flex-col justify-between"
+                className={`p-1 border border-gray-200 flex flex-col justify-between ${
+                  day && isSameDay(day.date, today) ? "bg-gray-100" : "bg-white"
+                }`}
                 style={{
                   minHeight: `${cellSize}px`,
                   minWidth: `${cellSize}px`,
                 }}
               >
                 {day ? (
-                  <div className="flex flex-col h-full">
+                  <div className="flex justify-between flex-col h-full">
                     <div className="text-left text-gray-400 text-xs">{day.day}</div>
                     {day.sales > 0 && (
                       <div className="text-sm text-right">

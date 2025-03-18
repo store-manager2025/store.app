@@ -10,7 +10,7 @@ export default function CalculatorModal() {
   const [operator, setOperator] = useState<string | null>(null);
   const [previousValue, setPreviousValue] = useState<string | null>(null);
   const [position, setPosition] = useState<{ x: number; y: number }>({
-    x: window.innerWidth / 2 - 280, // 초기 중앙 위치
+    x: window.innerWidth / 2 - 309, // 초기 중앙 위치
     y: window.innerHeight / 2 - 350,
   });
   const modalRef = useRef<HTMLDivElement>(null);
@@ -132,15 +132,15 @@ export default function CalculatorModal() {
   return (
     <div
       ref={modalRef}
-      className="absolute bg-white rounded-lg shadow-lg p-4 w-96 z-50"
+      className="absolute cursor-grabbing bg-gray-700 rounded-lg shadow-lg p-4 w-80 z-50"
       style={{
         transform: `translate(${position.x}px, ${position.y}px)`,
         transition: "transform 0.1s ease-out", // 부드러운 이동 효과
       }}
       onMouseDown={handleMouseDown}
     >
-      <h2 className="text-lg font-medium mb-2 cursor-move">계산기</h2>
-      <div className="bg-gray-100 p-4 rounded-lg mb-4 text-right text-xl font-mono">
+      <h2 className="text-lg text-white font-medium mb-2 cursor-move"></h2>
+      <div className="bg-gray-100 p-4 rounded-lg opacity-50 mb-4 text-right text-xl font-mono">
         {display}
       </div>
       <div className="grid grid-cols-4 gap-2">
@@ -207,10 +207,10 @@ export default function CalculatorModal() {
         </button>
       </div>
       <button
-        className="bg-gray-200 rounded-lg p-2 w-full mt-4"
+        className="bg-gray-200 rounded p-2 w-full mt-4"
         onClick={() => setCalculatorModalOpen(false)}
       >
-        닫기
+      Close
       </button>
     </div>
   );

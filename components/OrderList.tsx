@@ -5,7 +5,7 @@ import { CreditCard, Banknote } from "lucide-react";
 import SearchBar from "./SearchBar";
 
 interface OrderListProps {
-  storeId: number;
+  storeId: number | null;
   isCancelled: boolean;
   selectedOrderId: number | null;
   setSelectedOrder: (orderId: number, date: string) => void;
