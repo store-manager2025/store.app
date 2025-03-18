@@ -41,13 +41,17 @@ export default function PaymentPage() {
   const [charge, setCharge] = useState(0);
   const [splitAmount, setSplitAmount] = useState(0);
   const [paidByCard, setPaidByCard] = useState(0);
+  const [paidByCash, setPaidByCash] = useState(0); // 실제 서버에 전송된 현금 결제 금액
   const [isSplitVisible, setIsSplitVisible] = useState(false);
   const [isOtherClicked, setIsOtherClicked] = useState(false);
   // 기존 신용카드 결제 모달 (필요 시 활용)
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   // 새로 추가된 영수증 출력 여부 모달
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  // 최소 결제 금액 경고 모달
+  const [showMinAmountModal, setShowMinAmountModal] = useState(false);
   const [latestPaymentId, setLatestPaymentId] = useState<number | null>(null);
+  const [paymentIds, setPaymentIds] = useState<number[]>([]); // 모든 결제 ID 추적
 
   const initialTotal = selectedItems.reduce(
     (acc: number, item: Item) => acc + item.price * item.quantity,
@@ -56,7 +60,7 @@ export default function PaymentPage() {
   
   // totalAmount 계산 (단일 useEffect)
   useEffect(() => {
-    const newTotalAmount = Math.max(0, initialTotal - charge - paidByCard);
+    const newTotalAmount = Math.max(0, initialTotal - paidByCash - paidByCard);
     console.log(
       "Updating totalAmount:",
       newTotalAmount,
@@ -64,6 +68,8 @@ export default function PaymentPage() {
       initialTotal,
       "charge:",
       charge,
+      "paidByCash:",
+      paidByCash,
       "paidByCard:",
       paidByCard,
       "splitAmount:",
@@ -71,17 +77,7 @@ export default function PaymentPage() {
     );
     setPrevTotalAmount(totalAmount);
     setTotalAmount(newTotalAmount);
-  }, [initialTotal, charge, paidByCard]);
-
-  // useEffect(() => {
-  //   const newTotalAmount = Math.max(0, initialTotal - charge - paidByCard);
-  //   console.log("Updating totalAmount:", newTotalAmount, "charge:", charge, "paidByCard:", paidByCard, "splitAmount:", splitAmount);
-  //   setTotalAmount(newTotalAmount);
-  // }, [charge, paidByCard, initialTotal]);
-
-  // useEffect(() => {
-  //   setTotalAmount(Math.max(0, initialTotal - charge - splitAmount));
-  // }, [charge, splitAmount, initialTotal]);
+  }, [initialTotal, paidByCash, paidByCard, totalAmount]);
 
   const handleCashButtonClick = (amount: number) => {
     setCharge((prev) => prev + amount);
@@ -121,12 +117,16 @@ export default function PaymentPage() {
   };
 
   const handleCreditCardClick = async () => {
-    if (splitAmount <= 0) {
-      alert("카드 결제 금액을 입력해주세요.");
+    // split 값이 0인 경우 (입력하지 않은 경우) 전체 금액 결제
+    const amountToCharge = splitAmount === 0 ? totalAmount : splitAmount;
+    
+    // split 값이 0보다 크고 1000 이하인 경우 경고 모달 표시
+    if (splitAmount > 0 && splitAmount <= 1000) {
+      setShowMinAmountModal(true);
       return;
     }
 
-    if (splitAmount > totalAmount) {
+    if (amountToCharge > totalAmount) {
       alert("카드 결제 금액은 남은 총액을 초과할 수 없습니다.");
       return;
     }
@@ -137,7 +137,7 @@ export default function PaymentPage() {
         orderId: orderId ? parseInt(orderId) : null,
         placeId: placeId ? parseInt(placeId) : null,
         discountAmount: 0,
-        paidMoney: splitAmount, // splitAmount만 카드 결제로
+        paidMoney: amountToCharge, // 계산된 금액 사용
         paymentType: "CARD",
         cardCompany: "국민",
         cardNumber: "1234-1234-1234-1234",
@@ -148,13 +148,26 @@ export default function PaymentPage() {
       const response = await axiosInstance.post("/api/pay", paymentData);
       console.log("카드 결제 성공:", response.data);
 
+      // 카드 결제 ID 저장
+      const paymentId = response.data.paymentId || null;
+      if (paymentId) {
+        setLatestPaymentId(paymentId);
+        setPaymentIds(prev => [...prev, paymentId]);
+      }
+
       // 카드 결제 금액 누적
-      setPaidByCard((prev) => prev + splitAmount);
+      setPaidByCard((prev) => prev + amountToCharge);
       setSplitAmount(0); // 카드 결제 후 splitAmount 초기화
 
+      // 현금도 함께 처리해야 하는 경우
+      if (charge > 0) {
+        await processCashPayment(charge);
+        setCharge(0); // 현금 결제 처리 후 charge 초기화
+      }
+
       // totalAmount가 0이 되었을 때만 영수증 모달 표시
-      const newTotalAmount = totalAmount - splitAmount;
-      if (newTotalAmount === 0) {
+      const remainingAmount = totalAmount - amountToCharge - (charge > 0 ? charge : 0);
+      if (remainingAmount <= 0) {
         setShowReceiptModal(true);
       }
     } catch (error: any) {
@@ -163,48 +176,89 @@ export default function PaymentPage() {
     }
   };
 
-  const handleDoneClick = async () => {
-    if (charge + paidByCard >= initialTotal && initialTotal > 0) {
-      try {
-        if (orderId && placeId) {
-          const numericPlaceId = typeof placeId === "string" ? parseInt(placeId) : placeId;
-          await fetchUnpaidOrderByPlace(numericPlaceId);
-          const currentOrderId = usePosStore.getState().orderId;
-          if (!currentOrderId) {
-            alert("이미 결제 완료된 주문입니다.");
-            resetData();
-            router.push("/pos");
-            return;
-          }
-        }
+  // 현금 결제 처리 함수 (재사용성을 위해 분리)
+  const processCashPayment = async (cashAmount: number) => {
+    if (cashAmount <= 0) return;
+    
+    try {
+      const paymentData = {
+        storeId: storeId ?? null,
+        orderId: orderId ? parseInt(orderId) : null,
+        placeId: placeId ? parseInt(placeId) : null,
+        discountAmount: 0,
+        paidMoney: cashAmount,
+        paymentType: "CASH",
+        cardCompany: "",
+        cardNumber: "",
+        expiryDate: "",
+      };
 
-        // 나머지 금액을 현금으로 결제
-        const cashAmount = initialTotal - paidByCard; // 총액에서 카드 결제 금액 뺀 나머지
-        if (cashAmount > 0) {
-          const paymentData = {
-            storeId: storeId ?? null,
-            orderId: orderId ? parseInt(orderId) : null,
-            placeId: placeId ? parseInt(placeId) : null,
-            discountAmount: 0,
-            paidMoney: cashAmount,
-            paymentType: "CASH",
-            cardCompany: "",
-            cardNumber: "",
-            expiryDate: "",
-          };
-
-          console.log("Sending cash payment request:", JSON.stringify(paymentData, null, 2));
-          const response = await axiosInstance.post("/api/pay", paymentData);
-          console.log("현금 결제 성공:", response.data);
-        }
-
-        setShowReceiptModal(true); // 영수증 모달 표시
-      } catch (error: any) {
-        console.error("현금 결제 오류:", error.response?.data || error);
-        alert("현금 결제 중 오류가 발생했습니다.");
+      console.log("Sending cash payment request:", JSON.stringify(paymentData, null, 2));
+      const response = await axiosInstance.post("/api/pay", paymentData);
+      console.log("현금 결제 성공:", response.data);
+      
+      // 현금 결제 ID 저장
+      const paymentId = response.data.paymentId || null;
+      if (paymentId) {
+        setLatestPaymentId(paymentId);
+        setPaymentIds(prev => [...prev, paymentId]);
       }
-    } else {
-      alert(`결제 금액이 부족합니다. 총액: ${initialTotal}, 지불: ${charge + paidByCard}`);
+      
+      // 서버에 전송된 현금 결제 금액 누적
+      setPaidByCash(prev => prev + cashAmount);
+      
+      return true;
+    } catch (error: any) {
+      console.error("현금 결제 오류:", error.response?.data || error);
+      alert("현금 결제 중 오류가 발생했습니다.");
+      return false;
+    }
+  };
+
+  const handleDoneClick = async () => {
+    // 남은 결제 금액 체크
+    const remainingAmount = initialTotal - paidByCash - paidByCard;
+    
+    if (remainingAmount === 0) {
+      // 이미 전액 결제된 경우
+      setShowReceiptModal(true);
+      return;
+    }
+    
+    if (charge <= 0 && remainingAmount > 0) {
+      alert("결제할 금액을 입력해주세요.");
+      return;
+    }
+
+    if (charge < remainingAmount) {
+      alert(`결제 금액이 부족합니다. 남은 총액: ${remainingAmount.toLocaleString()}, 입력한 금액: ${charge.toLocaleString()}`);
+      return;
+    }
+
+    try {
+      if (orderId && placeId) {
+        const numericPlaceId = typeof placeId === "string" ? parseInt(placeId) : placeId;
+        await fetchUnpaidOrderByPlace(numericPlaceId);
+        const currentOrderId = usePosStore.getState().orderId;
+        if (!currentOrderId) {
+          alert("이미 결제 완료된 주문입니다.");
+          resetData();
+          router.push("/pos");
+          return;
+        }
+      }
+
+      // 현금 결제 처리
+      if (charge > 0) {
+        const success = await processCashPayment(charge);
+        if (!success) return;
+      }
+
+      // 모든 결제가 완료되면 영수증 모달 표시
+      setShowReceiptModal(true);
+    } catch (error: any) {
+      console.error("결제 오류:", error.response?.data || error);
+      alert("결제 중 오류가 발생했습니다.");
     }
   };
 
@@ -228,12 +282,6 @@ export default function PaymentPage() {
     }
   };
 
-  // // "아니오" 버튼 클릭: POS 상태 초기화 후 /pos로 이동
-  // const handleReceiptNo = () => {
-  //   resetData();
-  //   router.push("/pos");
-  // };
-
   const handleCancel = async () => {
     console.log("Cancel 버튼 클릭됨. 현재 상태:", {
       charge,
@@ -241,22 +289,37 @@ export default function PaymentPage() {
       totalAmount,
       orderId,
       isNewOrderParam,
-      latestPaymentId,
+      paymentIds,
     });
 
     let orderCancelSuccess = false;
-    let refundSuccess = false;
+    let refundSuccess = true; // 기본값은 true, 실패 시 false로 변경
+
+    // 1. 결제 취소 (모든 결제 ID에 대해 수행)
+    if (paymentIds.length > 0) {
+      try {
+        for (const paymentId of paymentIds) {
+          console.log(`Requesting refund for paymentId: ${paymentId}`);
+          const response = await axiosInstance.post(`/api/pay/cancel/${paymentId}`);
+          console.log(`환불 성공 (paymentId: ${paymentId}):`, response.data);
+        }
+        
+        setCharge(0);
+        setSplitAmount(0);
+        setPaidByCash(0);
+        setPaidByCard(0);
+        setPaymentIds([]);
+      } catch (error: any) {
+        console.error("환불 실패:", error.response?.data || error);
+        alert("환불 처리 중 오류가 발생했습니다.");
+        refundSuccess = false;
+        return;
+      }
+    }
 
     // 2. 신규 주문 취소
     if (isNewOrderParam === "1" && orderId) {
       try {
-        const refundData = selectedItems.map((item) => ({
-          menuId: item.menuId,
-          quantity: item.quantity,
-          orderPrice: item.price * item.quantity,
-        }));
-        console.log("주문 취소 요청:", refundData);
-        // DELETE 대신 POST로 변경 (서버가 DELETE를 지원하지 않을 가능성)
         const response = await axiosInstance.delete(`/api/orders/all/${orderId}`);
         console.log("새 주문 취소 완료:", orderId);
         orderCancelSuccess = true;
@@ -269,29 +332,6 @@ export default function PaymentPage() {
       orderCancelSuccess = true; // 신규 주문이 아니면 성공으로 간주
     }
 
-    // 1. 결제 취소
-    if (orderCancelSuccess && latestPaymentId) {
-      try {
-        console.log(`Requesting refund for paymentId: ${latestPaymentId}`);
-        const response = await axiosInstance.post(`/api/pay/cancel/${latestPaymentId}`);
-        console.log("환불 성공:", response.data);
-        refundSuccess = true;
-
-        setCharge(0);
-        setSplitAmount(0);
-        setTotalAmount(initialTotal);
-        setLatestPaymentId(null);
-      } catch (error: any) {
-        console.error("환불 실패:", error.response?.data || error);
-        alert("환불 처리 중 오류가 발생했습니다.");
-        return;
-      }
-    } else {
-      refundSuccess = !latestPaymentId; // 결제가 없으면 성공으로 간주
-    }
-
-    
-
     if (orderCancelSuccess && refundSuccess) {
       console.log("취소 완료: 주문과 결제 모두 성공적으로 취소됨");
       resetData();
@@ -301,7 +341,7 @@ export default function PaymentPage() {
     }
   };
 
-  const changes = Math.max(0, charge + splitAmount - initialTotal);
+  const changes = Math.max(0, charge - (totalAmount > 0 ? totalAmount : 0));
 
   return (
     <div className="flex w-full h-screen font-mono">
@@ -435,11 +475,11 @@ export default function PaymentPage() {
               animate={{ x: 0, width: "49%" }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
               className={`py-2 rounded-md border border-gray-300 ${
-                charge + paidByCard >= initialTotal
+                charge + paidByCard + paidByCash >= initialTotal
                   ? "bg-[#007aff] text-white font-bold"
                   : "bg-gray-200 text-gray-700 cursor-not-allowed"
               } flex items-center justify-center`}
-              disabled={charge + paidByCard < initialTotal}
+              disabled={charge + paidByCard + paidByCash < initialTotal}
             >
               <span className="text-base font-medium">Done</span>
             </motion.button>
@@ -447,28 +487,37 @@ export default function PaymentPage() {
         </div>
       </div>
 
-      {/* 기존 카드 결제 확인 모달 (필요시 활용) */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-md">
-            <p>카드 결제를 진행하시겠습니까?</p>
-            <div className="mt-4 flex justify-end space-x-2">
-              <button
-                onClick={() => setShowConfirmModal(false)}
-                className="py-2 px-4 bg-gray-200 rounded-md"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleConfirmPayment}
-                className="py-2 px-4 bg-blue-500 text-white rounded-md"
-              >
-                확인
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 최소 결제 금액 경고 모달 */}
+      <AnimatePresence>
+        {showMinAmountModal && (
+          <motion.div
+            className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <motion.div
+              className="bg-white p-6 rounded-md max-w-sm w-full shadow-lg"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <h3 className="text-lg font-medium text-gray-900 mb-2">최소 결제 금액 안내</h3>
+              <p className="text-gray-700 mb-4">1000원 이상부터 결제가 가능합니다.</p>
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setShowMinAmountModal(false)}
+                  className="py-2 px-4 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+                >
+                  확인
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 영수증 출력 여부 확인 모달 */}
       {showReceiptModal && (

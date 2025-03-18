@@ -5,11 +5,15 @@ import { useRouter } from "next/navigation";
 import axiosInstance from "../../lib/axiosInstance";
 import { motion, AnimatePresence } from "framer-motion";
 import Modal from "../../components/Modal";
-import { isSameDay, parseISO } from "date-fns";
 
 interface Store {
   storeId: string;
   storeName: string;
+}
+
+interface OperatingTime {
+  storeId: number;
+  closedAt: string | null;
 }
 
 export default function HomePage() {
@@ -146,8 +150,7 @@ export default function HomePage() {
       console.log("Operating Times:", operatingTimes); // 디버깅 로그
 
       // 운영 시간 확인 - 단순화된 로직으로 변경
-      const isStoreAlreadyOpen = operatingTimes.some((time) => {
-        // 여기서 storeId가 일치하고 closedAt이 null인 매장이 있으면 true 반환
+      const isStoreAlreadyOpen = operatingTimes.some((time: OperatingTime) => {
         return (
           time.storeId.toString() === storeId.toString() &&
           time.closedAt === null
