@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AddCategoryModal from "../../components/AddCategoryModal";
 import ModifyCategoryModal from "../../components/ModifyCategoryModal";
@@ -32,7 +32,9 @@ export default function EditCategoryPage() {
   const fetchCategories = async () => {
     if (!storeId || !token) return;
     try {
-      const response = await axiosInstance.get(`/api/categories/all/${storeId}`);
+      const response = await axiosInstance.get(
+        `/api/categories/all/${storeId}`
+      );
       setCategories(response.data);
     } catch (error: any) {
       console.error(error.message);
@@ -97,29 +99,40 @@ export default function EditCategoryPage() {
     }
   };
 
-  const handleModifyCategory = async (id: number, uiId: number, name: string, color: string) => {
+  const handleModifyCategory = async (
+    id: number,
+    uiId: number,
+    name: string,
+    color: string
+  ) => {
     if (!token) return;
-  
+
     const requestData = {
       categoryId: id,
       uiId: uiId,
-      categoryName: name || "default", 
+      categoryName: name || "default",
       colorCode: color,
       positionX: "",
       positionY: "",
       sizeType: "",
     };
-  
+
     console.log("보내는 데이터:", requestData); // 백엔드로 보내는 데이터를 로그로 확인
-  
+
     try {
-      const response = await axiosInstance.patch("/api/categories", requestData);
+      const response = await axiosInstance.patch(
+        "/api/categories",
+        requestData
+      );
       console.log("✅ 응답:", response.data);
       alert("카테고리가 수정되었습니다.");
       closeModifyModal();
       fetchCategories();
     } catch (error: any) {
-      console.error("❌ 카테고리 수정 오류:", error.response?.data || error.message);
+      console.error(
+        "❌ 카테고리 수정 오류:",
+        error.response?.data || error.message
+      );
       alert("카테고리 수정에 실패했습니다.");
     }
   };
@@ -139,69 +152,71 @@ export default function EditCategoryPage() {
   };
 
   return (
-    <div className="flex items-center justify-center h-screen w-screen relative font-mono">
-      {/* 전체를 감싸는 박스 */}
-      <div className="relative w-4/5 h-4/5 bg-white bg-opacity-20 border border-gray-400 rounded-2xl p-6 flex flex-row shadow-lg">
-        <button
-          onClick={() => router.push("/setting")}
-          className="absolute top-0 left-0 bg-transparent px-2 py-2 text-gray-500 text-sm rounded hover:text-gray-400"
-        >
-          <ChevronLeft className="w-8 h-8" />
-        </button>
+    <Suspense fallback={<div></div>}>
+      <div className="flex items-center justify-center h-screen w-screen relative font-mono">
+        {/* 전체를 감싸는 박스 */}
+        <div className="relative w-4/5 h-4/5 bg-white bg-opacity-20 border border-gray-400 rounded-2xl p-6 flex flex-row shadow-lg">
+          <button
+            onClick={() => router.push("/setting")}
+            className="absolute top-0 left-0 bg-transparent px-2 py-2 text-gray-500 text-sm rounded hover:text-gray-400"
+          >
+            <ChevronLeft className="w-8 h-8" />
+          </button>
 
-        {/* 왼쪽 50% (카테고리 리스트) */}
-        <div className="w-1/2 flex flex-col justify-center gap-4 items-center p-4">
-          <h2 className="text-md font-semibold mb-6">Edit Categories</h2>
+          {/* 왼쪽 50% (카테고리 리스트) */}
+          <div className="w-1/2 flex flex-col justify-center gap-4 items-center p-4">
+            <h2 className="text-md font-semibold mb-6">Edit Categories</h2>
 
-          {/* 카테고리 리스트 */}
-          <div className="w-full flex flex-wrap gap-4 justify-center">
-            {categories.map((cat) => (
-              <div
-                key={cat.categoryId}
-                onClick={() => openModifyModal(cat)}
-                className="min-w-[5rem] max-w-full text-center cursor-pointer border border-gray-400 hover:bg-gray-200 py-2"
-                style={{ backgroundColor: cat.categoryStyle.colorCode }}
+            {/* 카테고리 리스트 */}
+            <div className="w-full flex flex-wrap gap-4 justify-center">
+              {categories.map((cat) => (
+                <div
+                  key={cat.categoryId}
+                  onClick={() => openModifyModal(cat)}
+                  className="min-w-[5rem] max-w-full text-center cursor-pointer border border-gray-400 hover:bg-gray-200 py-2"
+                  style={{ backgroundColor: cat.categoryStyle.colorCode }}
+                >
+                  {cat.categoryName}
+                </div>
+              ))}
+            </div>
+
+            {/* 하단 버튼들 */}
+            <div className="flex space-x-4 mt-6">
+              <button
+                onClick={openAddModal}
+                className="px-6 py-1 text-xs bg-gray-300 rounded hover:bg-gray-400"
               >
-                {cat.categoryName}
-              </div>
-            ))}
+                Add
+              </button>
+            </div>
           </div>
 
-          {/* 하단 버튼들 */}
-          <div className="flex space-x-4 mt-6">
-            <button
-              onClick={openAddModal}
-              className="px-6 py-1 text-xs bg-gray-300 rounded hover:bg-gray-400"
-            >
-              Add
-            </button>
+          {/* 중앙 구분선 */}
+          <div className="my-6 border-l border-gray-400"></div>
+
+          {/* 오른쪽 50% (모달 렌더링 영역) */}
+          <div className="w-1/2 flex items-center justify-center">
+            {isAddModalOpen && (
+              <AddCategoryModal
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                onSubmit={handleAddCategory}
+              />
+            )}
+
+            {isModifyModalOpen && selectedCategory && (
+              <ModifyCategoryModal
+                isOpen={isModifyModalOpen}
+                onClose={() => setIsModifyModalOpen(false)}
+                category={selectedCategory}
+                onModify={handleModifyCategory}
+                onDelete={handleDeleteCategory}
+              />
+            )}
           </div>
-        </div>
-
-        {/* 중앙 구분선 */}
-        <div className="my-6 border-l border-gray-400"></div>
-
-        {/* 오른쪽 50% (모달 렌더링 영역) */}
-        <div className="w-1/2 flex items-center justify-center">
-          {isAddModalOpen && (
-            <AddCategoryModal
-              isOpen={isAddModalOpen}
-              onClose={() => setIsAddModalOpen(false)}
-              onSubmit={handleAddCategory}
-            />
-          )}
-
-          {isModifyModalOpen && selectedCategory && (
-            <ModifyCategoryModal
-              isOpen={isModifyModalOpen}
-              onClose={() => setIsModifyModalOpen(false)}
-              category={selectedCategory}
-              onModify={handleModifyCategory}
-              onDelete={handleDeleteCategory}
-            />
-          )}
         </div>
       </div>
-    </div>
+    </Suspense>
   );
 }

@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useMemo } from "react";
+import React, { Suspense, useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "@/lib/axiosInstance";
 import { usePosStore } from "@/store/usePosStore";
@@ -405,6 +405,7 @@ export default function PaymentPage() {
   }, [charge, initialTotal, paidByCash, paidByCard, splitAmount, isSplitVisible]);
 
   return (
+    <Suspense fallback={<div></div>}>
     <div className="flex w-full h-screen font-mono">
       <button
         onClick={handleCancel}
@@ -607,5 +608,6 @@ export default function PaymentPage() {
         </div>
       </Modal>
     </div>
+    </Suspense>
   );
 }

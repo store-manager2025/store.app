@@ -24,6 +24,9 @@ if (token) {
 }
 
 export default function OrderPage() {
+  if (typeof window !== 'undefined') {
+    console.log(window.location.href);
+  }
   const router = useRouter();
   const { storeId, selectedOrderId, selectedDate, setSelectedOrder, setCalculatorModalOpen } =
     useFormStore();
