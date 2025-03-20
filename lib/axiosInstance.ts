@@ -1,7 +1,9 @@
 import axios from "axios";
 
+const API_BASE_URL = "http://localhost:8383"; // 백엔드 서버 주소
+
 const axiosInstance = axios.create({
-  baseURL: "http://localhost:8383",
+  baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -10,7 +12,6 @@ const axiosInstance = axios.create({
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("accessToken");
-    console.log("Request sent with token:", token, "URL:", config.url);
     if (token) {
       config.headers["Authorization"] = `Bearer ${token}`;
     }
@@ -23,29 +24,46 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    
+    // 401 에러 & 재시도하지 않은 경우만 처리
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      const refreshToken = localStorage.getItem("refreshToken");
       
+      // 리프레시 토큰이 없으면 로그인 페이지로 리디렉션
+      const refreshToken = localStorage.getItem("refreshToken");
       if (!refreshToken) {
+        alert("세션이 만료되었습니다. 다시 로그인해주세요.");
         localStorage.clear();
         window.location.href = "/";
-        return Promise.reject(new Error("No refresh token"));
+        return Promise.reject(error);
       }
       
       try {
-        const response = await axios.post("/api/auth/refresh", { refreshToken });
-        localStorage.setItem("accessToken", response.data.accessToken);
-        localStorage.setItem("refreshToken", response.data.refreshToken);
-        originalRequest.headers["Authorization"] = `Bearer ${response.data.accessToken}`;
-        // 재발급 후 원래 요청 재시도
-        return axiosInstance(originalRequest);
+        // 전체 URL을 사용하여 리프레시 토큰 요청
+        const refreshResponse = await axios.post(`${API_BASE_URL}/auth/refresh`, { 
+          refreshToken 
+        });
+        
+        if (refreshResponse.data?.accessToken) {
+          localStorage.setItem("accessToken", refreshResponse.data.accessToken);
+          if (refreshResponse.data.refreshToken) {
+            localStorage.setItem("refreshToken", refreshResponse.data.refreshToken);
+          }
+          
+          // 인증 헤더 업데이트
+          axios.defaults.headers.common["Authorization"] = `Bearer ${refreshResponse.data.accessToken}`;
+          originalRequest.headers["Authorization"] = `Bearer ${refreshResponse.data.accessToken}`;
+          
+          return axios(originalRequest);
+        }
       } catch (refreshError) {
+        console.error("토큰 갱신 실패:", refreshError);
+        alert("인증이 만료되었습니다. 다시 로그인해주세요.");
         localStorage.clear();
         window.location.href = "/";
-        return Promise.reject(refreshError);
       }
     }
+    
     return Promise.reject(error);
   }
 );

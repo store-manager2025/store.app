@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "@/lib/axiosInstance";
 import { usePosStore } from "@/store/usePosStore";
@@ -38,7 +38,7 @@ export default function PaymentPage() {
 
   // 상태 관리
   const [totalAmount, setTotalAmount] = useState(0);
-  const [prevTotalAmount, setPrevTotalAmount] = useState(totalAmount);
+  const [prevTotalAmount, setPrevTotalAmount] = useState(0);
   const [charge, setCharge] = useState(0);
   const [splitAmount, setSplitAmount] = useState(0);
   const [paidByCard, setPaidByCard] = useState(0);
@@ -54,17 +54,39 @@ export default function PaymentPage() {
   const [latestPaymentId, setLatestPaymentId] = useState<number | null>(null);
   const [paymentIds, setPaymentIds] = useState<number[]>([]); // 모든 결제 ID 추적
 
-  const initialTotal = selectedItems.reduce(
-    (acc: number, item: Item) => acc + item.price * item.quantity,
-    0
-  );
+  // useMemo를 사용하여 initialTotal 계산
+  const initialTotal = useMemo(() => {
+    return selectedItems.reduce(
+      (acc: number, item: Item) => acc + item.price * item.quantity,
+      0
+    );
+  }, [selectedItems]);
 
-  // totalAmount 계산 (단일 useEffect)
+  // displayAmount 계산 - charge 값도 반영되도록 수정
+  const displayAmount = useMemo(() => {
+    const remainingAmount = Math.max(0, initialTotal - paidByCash - paidByCard);
+    
+    // 현금 입력(charge)과 splitAmount 모두 고려하여 표시
+    let tempAmount = remainingAmount;
+    
+    // Split 금액이 있으면 차감
+    if (isSplitVisible && splitAmount > 0) {
+      tempAmount = Math.max(0, tempAmount - splitAmount);
+    }
+    
+    // 입력된 현금(charge)이 있으면 차감
+    if (charge > 0) {
+      tempAmount = Math.max(0, tempAmount - charge);
+    }
+    
+    return tempAmount;
+  }, [initialTotal, paidByCash, paidByCard, splitAmount, isSplitVisible, charge]);
+
+  // totalAmount 계산 및 업데이트
   useEffect(() => {
-    const newTotalAmount = Math.max(0, initialTotal - paidByCash - paidByCard);
     console.log(
       "Updating totalAmount:",
-      newTotalAmount,
+      displayAmount,
       "initialTotal:",
       initialTotal,
       "charge:",
@@ -74,11 +96,14 @@ export default function PaymentPage() {
       "paidByCard:",
       paidByCard,
       "splitAmount:",
-      splitAmount
+      splitAmount,
+      "isSplitVisible:",
+      isSplitVisible
     );
+    
     setPrevTotalAmount(totalAmount);
-    setTotalAmount(newTotalAmount);
-  }, [initialTotal, paidByCash, paidByCard, totalAmount]);
+    setTotalAmount(displayAmount);
+  }, [displayAmount, totalAmount]);
 
   const handleCashButtonClick = (amount: number) => {
     setCharge((prev) => prev + amount);
@@ -100,12 +125,18 @@ export default function PaymentPage() {
 
   const handleSplitToggle = () => {
     setIsSplitVisible((prev) => !prev);
-    if (!isSplitVisible) setSplitAmount(0);
+    if (!isSplitVisible) {
+      setSplitAmount(0);
+    } else {
+      // Split 토글을 끄면 입력한 splitAmount 취소
+      setSplitAmount(0);
+    }
   };
 
   const handleSplitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setSplitAmount(value === "" ? 0 : parseInt(value, 10) || 0);
+    const numberValue = value === "" ? 0 : parseInt(value, 10) || 0;
+    setSplitAmount(numberValue);
   };
 
   const handleConfirmPayment = async () => {
@@ -127,7 +158,7 @@ export default function PaymentPage() {
       return;
     }
 
-    if (amountToCharge > totalAmount) {
+    if (amountToCharge > totalAmount + splitAmount) {
       alert("카드 결제 금액은 남은 총액을 초과할 수 없습니다.");
       return;
     }
@@ -162,6 +193,7 @@ export default function PaymentPage() {
       // 카드 결제 금액 누적
       setPaidByCard((prev) => prev + amountToCharge);
       setSplitAmount(0); // 카드 결제 후 splitAmount 초기화
+      setIsSplitVisible(false); // Split 모드 비활성화
 
       // 현금도 함께 처리해야 하는 경우
       if (charge > 0) {
@@ -171,7 +203,7 @@ export default function PaymentPage() {
 
       // totalAmount가 0이 되었을 때만 영수증 모달 표시
       const remainingAmount =
-        totalAmount - amountToCharge - (charge > 0 ? charge : 0);
+        initialTotal - paidByCash - paidByCard - amountToCharge - (charge > 0 ? charge : 0);
       if (remainingAmount <= 0) {
         setShowReceiptModal(true);
       }
@@ -358,7 +390,19 @@ export default function PaymentPage() {
     }
   };
 
-  const changes = Math.max(0, charge - (totalAmount > 0 ? totalAmount : 0));
+  // changes 계산 로직 수정 - 실제 결제 금액과의 차이로 계산
+  const changes = useMemo(() => {
+    // 실제 남은 금액 (charge, splitAmount 고려 전)
+    const actualRemainingAmount = Math.max(0, initialTotal - paidByCash - paidByCard);
+    
+    // Split 금액 차감
+    const remainingAfterSplit = isSplitVisible && splitAmount > 0
+      ? Math.max(0, actualRemainingAmount - splitAmount)
+      : actualRemainingAmount;
+    
+    // charge가 남은 금액보다 크면 잔돈 발생
+    return Math.max(0, charge - remainingAfterSplit);
+  }, [charge, initialTotal, paidByCash, paidByCard, splitAmount, isSplitVisible]);
 
   return (
     <div className="flex w-full h-screen font-mono">
@@ -469,9 +513,11 @@ export default function PaymentPage() {
             </button>
             <button
               onClick={handleSplitToggle}
-              className="py-2 px-4 bg-gray-200 rounded-md hover:bg-gray-300 border border-gray-300 flex-1"
+              className={`py-2 px-4 bg-gray-200 rounded-md hover:bg-gray-300 border border-gray-300 flex-1 ${
+                isSplitVisible ? "bg-blue-100" : ""
+              }`}
             >
-              Split
+              Split {isSplitVisible ? "(On)" : ""}
             </button>
           </div>
           <div className="flex space-x-2 items-center w-full justify-center">
@@ -489,7 +535,7 @@ export default function PaymentPage() {
             <motion.button
               onClick={handleDoneClick}
               layout
-              animate={{ x: 0, width: "49%" }}
+              animate={{ x: 0, width: isSplitVisible ? "49%" : "100%" }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
               className={`py-2 rounded-md border border-gray-300 ${
                 charge + paidByCard + paidByCash >= initialTotal

@@ -12,7 +12,16 @@ export default function CreatePage() {
   const [step, setStep] = useState<number>(1);
 
   // Zustand 스토어에서 상태와 업데이트 함수를 가져옴
-  const { storeName, storePlace, password, phoneNumber, setStoreName, setStorePlace, setPassword, setPhoneNumber } = useFormStore();
+  const {
+    storeName,
+    storePlace,
+    password,
+    phoneNumber,
+    setStoreName,
+    setStorePlace,
+    setPassword,
+    setPhoneNumber,
+  } = useFormStore();
 
   // 디바운싱을 위한 타이머 레퍼런스
   const nameTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -56,10 +65,12 @@ export default function CreatePage() {
   // --------------------------------------------
   const handleOpenKakaoAddress = () => {
     if (typeof window === "undefined" || !window.daum?.Postcode) {
-      alert("카카오 주소 API가 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      alert(
+        "카카오 주소 API가 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요."
+      );
       return;
     }
-    (new (window.daum.Postcode as any)({
+    new (window.daum.Postcode as any)({
       oncomplete: (data: any) => {
         setStorePlace(data.address);
         console.log("카카오 주소 선택: ", data.address);
@@ -70,7 +81,7 @@ export default function CreatePage() {
           }
         }, 2000);
       },
-    })).open();
+    }).open();
   };
 
   const handleChangePlace = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -120,13 +131,13 @@ export default function CreatePage() {
       if (value.replace(/-/g, "").length === 11) {
         submitPayload();
       }
-    }, 2000);
+    }, 500);
   };
 
-  // submitPayload에서 최신 상태를 직접 가져옴
+  // submitPayload 함수 수정
   const submitPayload = async () => {
-    // useFormStore.getState()를 사용하여 항상 최신 상태를 가져온다.
-    const { storeName, storePlace, password, phoneNumber } = useFormStore.getState();
+    const { storeName, storePlace, password, phoneNumber } =
+      useFormStore.getState();
 
     console.log("Debug: storeName:", storeName);
     console.log("Debug: storePlace:", storePlace);
@@ -138,14 +149,28 @@ export default function CreatePage() {
     }
 
     try {
-      const payload = { storeName, storePlace, password, phoneNumber : phoneNumber.replace(/-/g, ""), };
-      console.log("최종 payload:", payload);
-      await axiosInstance.post("/api/stores", payload);
+      const payload = {
+        storeName,
+        storePlace,
+        password,
+        phoneNumber: phoneNumber.replace(/-/g, ""),
+      };
 
-      setStep(4); // 스피너 단계로 전환
+      console.log("최종 payload:", payload);
+
+      // 매장 생성 요청
+      const response = await axiosInstance.post("/api/stores", payload);
+
+      // 성공 메시지 표시
+      alert("매장이 성공적으로 생성되었습니다. 다시 로그인하여 사용해주세요.");
+
+      // 매장 생성 후 세션 클리어 및 로그인 페이지로 리디렉션
+      localStorage.clear();
+
+      setStep(5); // 스피너 단계로 전환
       setTimeout(() => {
-        router.push("/home");
-      }, 5000);
+        router.push("/"); // 로그인 페이지로 이동
+      }, 2000);
     } catch (error) {
       console.error("매장 생성 실패:", error);
       alert("매장 생성에 실패했습니다.");
@@ -153,7 +178,6 @@ export default function CreatePage() {
     }
   };
 
-  
   const renderStep = () => {
     if (step === 5) {
       return <Spinner />;
@@ -163,7 +187,9 @@ export default function CreatePage() {
       case 1:
         return (
           <div className="flex flex-col items-center">
-            <p className="text-gray-600 mb-4 text-lg">매장 이름을 작성해주세요.</p>
+            <p className="text-gray-600 mb-4 text-lg">
+              매장 이름을 작성해주세요.
+            </p>
             <input
               type="text"
               value={storeName}
@@ -181,7 +207,9 @@ export default function CreatePage() {
       case 2:
         return (
           <div className="flex flex-col items-center">
-            <p className="text-gray-600 mb-4 text-lg">매장 주소를 작성해주세요.</p>
+            <p className="text-gray-600 mb-4 text-lg">
+              매장 주소를 작성해주세요.
+            </p>
             <input
               type="text"
               value={storePlace}
@@ -205,7 +233,9 @@ export default function CreatePage() {
       case 3:
         return (
           <div className="flex flex-col items-center">
-            <p className="text-gray-600 mb-4 text-lg">사용하실 비밀번호 4자리를 입력해주세요.</p>
+            <p className="text-gray-600 mb-4 text-lg">
+              사용하실 비밀번호 4자리를 입력해주세요.
+            </p>
             <input
               type="password"
               maxLength={4}
@@ -221,16 +251,21 @@ export default function CreatePage() {
             />
           </div>
         );
-        case 4:
+      case 4:
         return (
           <div className="flex flex-col items-center">
-            <p className="text-gray-600 mb-4 text-lg">매장 대표번호를 입력해주세요.</p>
+            <p className="text-gray-600 mb-4 text-lg">
+              매장 대표번호를 입력해주세요.
+            </p>
             <input
               type="tel"
               value={phoneNumber}
               onChange={handleChangePhoneNumber}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && phoneNumber.replace(/-/g, "").length === 11) {
+                if (
+                  e.key === "Enter" &&
+                  phoneNumber.replace(/-/g, "").length === 11
+                ) {
                   submitPayload();
                 }
               }}

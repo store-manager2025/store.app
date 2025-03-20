@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Modal from "../../components/Modal";
 import AlertModal from "@/components/AlertModal";
 import useAlertModal from "@/hooks/useAlertModal";
+import axios from "axios";
 
 interface Store {
   storeId: string;
@@ -39,7 +40,7 @@ export default function HomePage() {
 
       if (!accessToken && refreshToken) {
         try {
-          const response = await axiosInstance.post("/api/auth/refresh", {
+          const response = await axios.post("http://localhost:8383/auth/refresh", {
             refreshToken,
           });
           localStorage.setItem("accessToken", response.data.accessToken);
