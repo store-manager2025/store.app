@@ -1,5 +1,5 @@
 "use client";
-import React, { Suspense, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AddCategoryModal from "../../components/AddCategoryModal";
 import ModifyCategoryModal from "../../components/ModifyCategoryModal";
@@ -152,7 +152,7 @@ export default function EditCategoryPage() {
   };
 
   return (
-    <Suspense fallback={<div></div>}>
+    
       <div className="flex items-center justify-center h-screen w-screen relative font-mono">
         {/* 전체를 감싸는 박스 */}
         <div className="relative w-4/5 h-4/5 bg-white bg-opacity-20 border border-gray-400 rounded-2xl p-6 flex flex-row shadow-lg">
@@ -217,6 +217,6 @@ export default function EditCategoryPage() {
           </div>
         </div>
       </div>
-    </Suspense>
+
   );
 }
