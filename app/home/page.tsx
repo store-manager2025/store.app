@@ -40,7 +40,7 @@ export default function HomePage() {
 
       if (!accessToken && refreshToken) {
         try {
-          const response = await axios.post("http://52.79.57.150:8383/auth/refresh", {
+          const response = await axiosInstance.post("/auth/refresh", {
             refreshToken,
           });
           localStorage.setItem("accessToken", response.data.accessToken);
@@ -153,7 +153,7 @@ export default function HomePage() {
 
       // 운영 시간 데이터 가져오기
       const operatingTimesResponse = await axiosInstance.get(
-        "http://52.79.57.150:8383/api/times/all-info"
+        "/api/times/all-info"
       );
       const operatingTimes = operatingTimesResponse.data;
 
