@@ -80,7 +80,7 @@ const OrderList: React.FC<OrderListProps> = ({
         ) : sortedSummaries.length === 0 || Object.keys(allOrdersMap).length === 0 ? (
           <p>주문 내역이 없습니다.</p>
         ) : (
-          sortedSummaries.map((summary: any) => {
+          sortedSummaries.map((summary: OrderSummary) => {
             const orders = allOrdersMap[summary.date] || [];
             return (
               <div key={summary.date}>
@@ -99,11 +99,17 @@ const OrderList: React.FC<OrderListProps> = ({
                       <div className="flex items-center">
                         {order.paymentType === "CARD" ? (
                           <CreditCard className="w-12 h-8 mr-2 text-gray-500" />
-                        ) : (
+                        ) : order.paymentType === "CASH" ? (
                           <Banknote className="w-12 h-8 mr-2 text-gray-500" />
+                        ) : (
+                          // MIX 경우 아이콘 조합
+                          <>
+                            <CreditCard className="w-6 h-4 mr-1 text-gray-500" />
+                            <Banknote className="w-6 h-4 mr-2 text-gray-500" />
+                          </>
                         )}
                         <div className="flex flex-col gap-4 ml-2 text-xs">
-                          <span>₩{order.price.toLocaleString()}</span>
+                          <span>₩{(order.price ?? 0).toLocaleString()}</span>
                           <span>
                             {isCancelled
                               ? "취소"

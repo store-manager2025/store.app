@@ -10,8 +10,10 @@ export interface Order {
   orderStatus: string;
   orderedAt: string;
   placeName: string;
-  paymentType?: "CARD" | "CASH";
+  paymentType: "CARD" | "CASH" | "MIX"; // "MIX" 추가
   paymentId?: number;
+  cardPrice?: number; // MIX일 경우 사용
+  cashPrice?: number; // MIX일 경우 사용
   menuDetail: {
     menuName: string;
     discountRate: number;
