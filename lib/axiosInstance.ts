@@ -1,9 +1,9 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8383"; // 백엔드 서버 주소
+const API_BASE_URL = "https://52.79.57.150:8383"; // 백엔드 서버 주소
 
 const axiosInstance = axios.create({
-  baseURL: "/api",
+  baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },

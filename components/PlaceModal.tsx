@@ -149,7 +149,7 @@ export default function PlaceModal({
 
       // 2) 서버에서 해당 placeId의 미결제 주문 조회
       const { data } = await axiosInstance.get(
-        `/api/orders/places/${place.placeId}`
+        `/orders/places/${place.placeId}`
       );
 
       const unpaidOrderId = data?.orderId || null;
