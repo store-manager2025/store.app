@@ -28,6 +28,7 @@ export default function OrderPage() {
   const [placeName, setPlaceName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [order, setOrder] = useState<Order | null>(null);
   const [loadingReceipt, setLoadingReceipt] = useState(false);
   const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -270,20 +271,26 @@ export default function OrderPage() {
     result += `${subLine}\n`;
     result += `메뉴:\n`;
     receipt.menuList.forEach((menu) => {
-      result += `${menu.menuName} x${menu.totalCount}  ₩${menu.totalPrice.toLocaleString()} (${menu.discountRate}% 할인)\n`;
+      // discountRate가 null일 경우 "0"으로 처리
+      const discountRate = menu.discountRate ?? 0;
+      result += `${menu.menuName} x${menu.totalCount}  ₩${menu.totalPrice.toLocaleString()} (${discountRate}% 할인)\n`;
     });
     result += `${subLine}\n`;
     result += `결제 정보:\n`;
     receipt.cardInfoList.forEach((card) => {
-      if (card.paymentType === "CARD") {
-        result += `CARD: ${card.cardCompany} ${card.cardNumber}\n`;
+      if (card.paymentType === "CARD" && card.cardCompany && card.cardNumber) {
+        // 정상적인 카드 결제일 경우
+        result += `${card.cardCompany}카드: ${card.cardNumber}\n`;
         result += `결제 방식: ${card.inputMethod}\n`;
         result += `승인일시: ${card.approveDate}\n`;
         result += `승인번호: ${card.approveNumber}\n`;
         result += `할부: ${card.installmentPeriod}\n`;
         result += `결제 금액: ₩${card.paidMoney.toLocaleString()}\n`;
       } else {
-        result += `CASH: ₩${card.paidMoney.toLocaleString()}\n`;
+        result += `${subLine}\n`;
+        // paymentType이 "CASH"이거나, cardCompany와 cardNumber가 null인 경우 현금 결제로 처리
+        result += `현금 결제\n`;
+        result += `결제 금액: ₩${card.paidMoney.toLocaleString()}\n`;
       }
     });
     result += `${subLine}\n`;
@@ -420,6 +427,7 @@ export default function OrderPage() {
                 placeName={placeName}
                 loadingReceipt={loadingReceipt}
                 receipt={receipt}
+                order={order}
                 handlePrint={handlePrint}
                 setIsRefundModalOpen={setIsRefundModalOpen}
               />
