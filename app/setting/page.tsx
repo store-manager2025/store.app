@@ -13,6 +13,7 @@ import axiosInstance from "../../lib/axiosInstance";
 import { useFormStore } from "@/store/formStore";
 import { usePosStore } from "@/store/usePosStore";
 import Modal from "@/components/Modal";
+import Cookies from "js-cookie";
 
 export default function SettingPage() {
   const router = useRouter();
@@ -29,8 +30,8 @@ export default function SettingPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("accessToken");
-      const currentStoreId = localStorage.getItem("currentStoreId");
+      const token = Cookies.get("accessToken");
+      const currentStoreId = Cookies.get("currentStoreId");
 
       if (!token || !currentStoreId) {
         alert("세션이 만료되었습니다. 다시 로그인해주세요.");
@@ -56,12 +57,11 @@ export default function SettingPage() {
         setShowIncompleteOrderModal(true);
         setShowCloseModal(false);
       } else {
-        console.log("Store closed successfully");
         setShowCloseModal(false);
         router.push("/home");
       }
     } catch (error) {
-      console.error("Error closing store:", error);
+      // 오류 처리 생략 (UI에 표시되지 않음)
     }
   };
 
@@ -75,12 +75,12 @@ export default function SettingPage() {
   };
 
   const handleOrdersClick = () => {
-    router.push("setting/orders");
+    router.push("/setting/orders");
   };
 
   const handleTransferClick = () => {
-    resetData(); // 모든 상태(캐시 포함) 초기화
-    localStorage.removeItem("currentStoreId"); // 현재 storeId 제거
+    resetData();
+    Cookies.remove("currentStoreId");
     router.push("/home");
   };
 

@@ -7,6 +7,7 @@ import CategoryButton from "../../components/CategoryButton";
 import MenuButton from "../../components/PosMenuButton";
 import SelectedMenuList from "../../components/SelectedMenuList";
 import PlaceModal from "../../components/PlaceModal";
+import Cookies from "js-cookie";
 
 interface SelectedItem {
   menuName: string;
@@ -43,37 +44,31 @@ export default function PosPage() {
 
   // storeId 초기화 및 데이터 로드
   useEffect(() => {
-    const savedStoreId = localStorage.getItem("currentStoreId");
+    const savedStoreId = Cookies.get("currentStoreId");
     const newStoreId = savedStoreId ? Number(savedStoreId) : null;
 
     if (newStoreId) {
-      console.log("Initializing or restoring storeId:", newStoreId);
       if (newStoreId !== storeId) {
         setStoreId(newStoreId);
       }
-
-      // 항상 카테고리와 메뉴를 로드
       fetchCategories(newStoreId).then(() => {
         const state = usePosStore.getState();
-        console.log("Categories loaded:", state.categories);
         const firstCategoryId = state.categories[0]?.categoryId;
         if (firstCategoryId && firstCategoryId !== selectedCategoryId) {
-          console.log("Setting selectedCategoryId to:", firstCategoryId);
           setSelectedCategoryId(firstCategoryId);
         }
       });
     }
-  }, [setStoreId, fetchCategories]); // 의존성에서 storeId 제거
+  }, [setStoreId, fetchCategories]);
 
   // selectedCategoryId 변경 시 메뉴 로드
   useEffect(() => {
     if (selectedCategoryId && storeId) {
-      console.log("Fetching menus for storeId:", storeId, "categoryId:", selectedCategoryId);
-      fetchMenusByCategory(selectedCategoryId, true);
+      fetchMenusByCategory(selectedCategoryId, true); // 항상 새 데이터 로드
     }
   }, [selectedCategoryId, storeId, fetchMenusByCategory]);
 
-  // 디버깅 로그
+  // 디버깅 로그 추가
   useEffect(() => {
     console.log("PosPage - storeId:", storeId);
     console.log("PosPage - categories:", categories);
