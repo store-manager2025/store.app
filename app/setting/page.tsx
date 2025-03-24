@@ -7,6 +7,8 @@ import {
   Archive,
   PanelRightClose,
   ArrowRightLeft,
+  SquareChartGantt,
+  Settings,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import axiosInstance from "../../lib/axiosInstance";
@@ -78,6 +80,14 @@ export default function SettingPage() {
     router.push("/setting/orders");
   };
 
+  const handleManagementClick =  () => {
+    router.push("/setting/management")
+  }
+
+  const handleSettingShow=  () => {
+
+  }
+
   const handleTransferClick = () => {
     resetData();
     Cookies.remove("currentStoreId");
@@ -141,6 +151,13 @@ export default function SettingPage() {
                 Orders
               </button>
               <button
+                onClick={handleManagementClick}
+                className="w-80 h-20 font-bold text-left flex flex-row items-center bg-transparent text-gray-700 border border-gray-500 hover:text-white hover:bg-[#333] rounded-lg shadow-sm"
+              >
+                <SquareChartGantt className="w-6 h-6 mr-2 ml-10" />
+                Management
+              </button>
+              <button
                 onClick={handleTransferClick}
                 className="w-80 h-20 font-bold text-left flex flex-row items-center bg-transparent text-gray-700 border border-gray-500 hover:text-white hover:bg-[#333] rounded-lg shadow-sm"
               >
@@ -153,6 +170,13 @@ export default function SettingPage() {
               >
                 <Archive className="w-6 h-6 mr-2 ml-10" />
                 Items
+              </button>
+              <button
+                onClick={handleTransferClick}
+                className="w-80 h-20 font-bold text-left flex flex-row items-center bg-transparent text-gray-700 border border-gray-500 hover:text-white hover:bg-[#333] rounded-lg shadow-sm"
+              >
+                <Settings className="w-6 h-6 mr-2 ml-10" />
+                Setting
               </button>
               <button
                 onClick={handleCloseClick}
