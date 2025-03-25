@@ -142,7 +142,7 @@ export default function SettingPage() {
             <h1 className="text-[40px] font-sans font-bold text-gray-700 mb-[120px]">
               Customize POS Settings
             </h1>
-            <div className="grid grid-cols-2 gap-8 w-full relative">
+            <div className="grid grid-cols-3 gap-8 w-full relative">
               <button
                 onClick={handleOrdersClick}
                 className="w-80 h-20 font-bold text-left flex flex-row items-center bg-transparent text-gray-700 border border-gray-500 hover:text-white hover:bg-[#333] rounded-lg shadow-sm"
