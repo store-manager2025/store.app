@@ -204,7 +204,13 @@ export default function PosPage() {
         </div>
         <div className="absolute right-2 top-0 h-full flex items-center">
           <button
-            onClick={() => router.push("/setting")}
+            onClick={() => {const token = Cookies.get("accessToken");
+              if (token) {
+                router.push("/setting");
+              } else {
+                alert("인증 정보가 유효하지 않습니다. 다시 로그인해주세요.");
+                router.push("/");
+              }}}
             className="text-gray-500 hover:text-gray-900 transition"
           >
             <Settings className="w-6 h-6" />
