@@ -3,9 +3,9 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, AlertCircle, CheckCircle, XCircle } from "lucide-react";
 import axiosInstance from "@/lib/axiosInstance";
-import { usePosStore, SelectedItem, Menu } from "../store/usePosStore";
+import { usePosStore, SelectedItem, Menu } from "../../store/usePosStore";
 import { motion, AnimatePresence } from "framer-motion";
-import AlertModal from "@/components/AlertModal";
+import AlertModal from "@/components/modals/AlertModal";
 import useAlertModal from "@/hooks/useAlertModal";
 
 interface SwipeableItemProps {

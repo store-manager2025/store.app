@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "@/lib/axiosInstance";
 import { usePosStore } from "@/store/usePosStore";
 import { motion, AnimatePresence } from "framer-motion";
-import Modal from "../../components/Modal";
+import Modal from "../../components/modals/Modal";
 import { useThemeStore } from "@/store/themeStore";
 
 // 타입 정의

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import axiosInstance from "@/lib/axiosInstance";
 import { useThemeStore } from "@/store/themeStore";
-import { usePosStore, SelectedItem, Menu } from "../store/usePosStore"; // SelectedItem 임포트
+import { usePosStore, SelectedItem, Menu } from "../../store/usePosStore"; // SelectedItem 임포트
 import { motion, AnimatePresence } from "framer-motion";
 import Cookies from "js-cookie";
 

@@ -4,10 +4,10 @@ import { useRouter } from "next/navigation";
 import { Settings } from "lucide-react";
 import { useThemeStore } from "../../store/themeStore";
 import { usePosStore } from "../../store/usePosStore";
-import CategoryButton from "../../components/CategoryButton";
-import MenuButton from "../../components/PosMenuButton";
-import SelectedMenuList from "../../components/SelectedMenuList";
-import PlaceModal from "../../components/PlaceModal";
+import CategoryButton from "../../components/pos/CategoryButton";
+import MenuButton from "../../components/pos/PosMenuButton";
+import SelectedMenuList from "../../components/pos/SelectedMenuList";
+import PlaceModal from "../../components/place/PlaceModal";
 import Cookies from "js-cookie";
 
 interface SelectedItem {
