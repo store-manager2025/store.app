@@ -10,7 +10,7 @@ import {
   subMonths,
   isSameDay,
 } from "date-fns";
-import { OrderSummary } from "../types/order";
+import { OrderSummary } from "../../types/order";
 
 interface MonthlyCalendarProps {
   orderSummaries: OrderSummary[];

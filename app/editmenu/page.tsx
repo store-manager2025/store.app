@@ -4,11 +4,11 @@ import { useRouter } from "next/navigation";
 import { useThemeStore } from "@/store/themeStore";
 import axiosInstance from "../../lib/axiosInstance";
 import Spinner from "../../components/Spinner";
-import CategorySidebar from "../../components/CategorySidebar";
-import AddItemModal from "../../components/AddItemModal";
-import ModifyItemModal from "../../components/ModifyItemModal";
-import GridCell from "../../components/EditGridCell";
-import AlertModal from "../../components/AlertModal";
+import CategorySidebar from "../../components/menus/CategorySidebar";
+import AddItemModal from "../../components/menus/AddItemModal";
+import ModifyItemModal from "../../components/menus/ModifyItemModal";
+import GridCell from "../../components/pos/EditGridCell";
+import AlertModal from "../../components/modals/AlertModal";
 import { ChevronLeft } from "lucide-react";
 import Cookies from "js-cookie";
 

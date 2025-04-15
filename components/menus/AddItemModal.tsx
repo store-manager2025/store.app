@@ -1,96 +1,58 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { HexColorPicker } from "react-colorful";
-import axiosInstance from "../lib/axiosInstance";
+import axiosInstance from "../../lib/axiosInstance";
 import Cookies from "js-cookie";
 
-type MenuItem = {
-  menuId: number;
-  uiId: number; // 서버로는 안 보냄
-  menuName: string;
-  price: number;
-  discountRate?: number;
-  menuStyle: {
-    uiId: number; // 서버로는 안 보냄
-    colorCode: string;
-    positionX?: number;
-    positionY?: number;
-    sizeType?: string; // "FULL" | "HALF"
-  };
-};
-
 interface Props {
-  menu: MenuItem;
   onClose: () => void;
-  hasHalfInSameCell: boolean; // 해당 셀에 HALF가 있으면 FULL 선택 불가
+  categoryId: number;
+  storeId: number;
+  positionX: number;
+  positionY: number;
+  hasHalfItem: boolean; // 셀에 HALF 메뉴가 있는지 여부
 }
 
-export default function ModifyItemModal({
-  menu,
+export default function AddItemModal({
   onClose,
-  hasHalfInSameCell,
+  categoryId,
+  storeId,
+  positionX,
+  positionY,
+  hasHalfItem,
 }: Props) {
-  const [menuName, setMenuName] = useState(menu.menuName);
-  const [price, setPrice] = useState(menu.price);
-  const [sizeType, setSizeType] = useState<"FULL" | "HALF">(
-    (menu.menuStyle.sizeType as "FULL" | "HALF") || "FULL"
-  );
-  const [colorCode, setColorCode] = useState(
-    menu.menuStyle.colorCode || "#FAFAFA"
-  );
-  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
-  const colorPickerRef = useRef<HTMLDivElement>(null);
-
+  const [menuName, setMenuName] = useState("");
+  const [price, setPrice] = useState<number>(0);
+  // 기본값 HALF
+  const [sizeType, setSizeType] = useState<"FULL" | "HALF">("HALF");
+  const [colorCode, setColorCode] = useState("#FAFAFA");
   const [token, setToken] = useState<string | null>(null);
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+
+  const colorPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const storedToken = Cookies.get("accessToken");
     if (storedToken) setToken(storedToken);
   }, []);
 
-  // 추가: menu prop이 변경될 때마다 내부 state 재할당
-  useEffect(() => {
-    setMenuName(menu.menuName);
-    setPrice(menu.price);
-    setSizeType((menu.menuStyle.sizeType as "FULL" | "HALF") || "FULL");
-    setColorCode(menu.menuStyle.colorCode || "#FAFAFA");
-  }, [menu]);
-
-  // 컬러 피커 외부 클릭 시 닫기
+  // 바깥 클릭 감지
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
-        isColorPickerOpen &&
         colorPickerRef.current &&
         !colorPickerRef.current.contains(event.target as Node)
       ) {
         setIsColorPickerOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
+    if (isColorPickerOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isColorPickerOpen]);
-
-  const handleDelete = async () => {
-    if (!token) {
-      alert("토큰이 없습니다. 다시 로그인해주세요.");
-      return;
-    }
-    try {
-      await axiosInstance.delete(`/api/menus/${menu.menuId}`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      onClose();
-    } catch (error) {
-      console.error(error);
-      alert("메뉴 삭제 실패");
-    }
-  };
 
   const handleSave = async () => {
     if (!menuName.trim() || price < 0) {
@@ -102,37 +64,30 @@ export default function ModifyItemModal({
       return;
     }
 
-    // HALF가 이미 있으면 FULL 불가
-    // (hasHalfInSameCell이 true면, 여기서도 FULL 선택 disabled)
     const bodyData = {
-      menuId: menu.menuId,
+      categoryId,
+      storeId,
       menuName,
       price,
-      discountRate: 0,
       colorCode,
-      positionX: menu.menuStyle.positionX,
-      positionY: menu.menuStyle.positionY,
       sizeType,
+      positionX,
+      positionY,
     };
 
     try {
-      await axiosInstance.patch("/api/menus", bodyData, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      await axiosInstance.post("/api/menus", bodyData);
       onClose();
-    } catch (error) {
-      console.error(error);
-      alert("메뉴 수정 실패");
+    } catch (err) {
+      console.error(err);
+      alert("메뉴 생성 실패");
     }
   };
 
   return (
-    <div className="relative font-mono p-6 w-80 bg-white">
-      <h2 className="text-md text-center font-semibold mb-4 text-gray-700">
-        Modify Item
+    <div className="relative p-6 w-80 bg-white border rounded shadow">
+      <h2 className="text-xl text-center font-semibold mb-4 text-gray-700">
+        Add New Item
       </h2>
 
       {/* Fullsize / Halfsize 선택 */}
@@ -145,8 +100,8 @@ export default function ModifyItemModal({
             checked={sizeType === "FULL"}
             onChange={() => setSizeType("FULL")}
             className="w-4 h-4"
-            disabled={hasHalfInSameCell}
-            // 셀에 HALF가 있다면 FULL 불가
+            disabled={hasHalfItem} 
+            // 셀에 HALF 메뉴가 이미 있다면 FULL 선택 불가
           />
           <span className="text-gray-700">Full Size</span>
         </label>
@@ -163,7 +118,7 @@ export default function ModifyItemModal({
         </label>
       </div>
 
-      {/* 메뉴 이름 입력 */}
+      {/* 입력 필드 */}
       <div className="space-y-3 text-sm">
         <div className="flex items-center gap-3">
           <label className="w-16 text-gray-700">Name</label>
@@ -187,10 +142,10 @@ export default function ModifyItemModal({
           />
         </div>
 
-        {/* 색상 */}
+        {/* 색상 필드 */}
         <div className="relative">
           <div className="flex items-center gap-3">
-            <label className="mr-[0.4rem] text-gray-700">Color</label>
+            <label className="text-gray-700">Color</label>
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -201,7 +156,7 @@ export default function ModifyItemModal({
                 className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               />
               <div
-                className="w-12 h-[2.4rem] border rounded"
+                className="w-10 h-6 border rounded"
                 style={{ backgroundColor: colorCode }}
                 onClick={() => setIsColorPickerOpen(true)}
               />
@@ -210,33 +165,41 @@ export default function ModifyItemModal({
           {isColorPickerOpen && (
             <div
               ref={colorPickerRef}
-              className="absolute z-10 bg-white p-2 border rounded shadow mt-2"
+              className="absolute z-10 bg-white p-3 border rounded shadow mt-2"
             >
               <HexColorPicker color={colorCode} onChange={setColorCode} />
+              <div className="mt-2 flex justify-end gap-2">
+                <button
+                  onClick={() => setIsColorPickerOpen(false)}
+                  className="px-3 py-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => setIsColorPickerOpen(false)}
+                  className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                  확인
+                </button>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* 버튼들 */}
-      <div className="mt-6 text-xs flex justify-center gap-4">
-        <button
-          onClick={handleSave}
-          className="px-5 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Save
-        </button>
+      {/* 버튼 */}
+      <div className="mt-6 flex justify-center gap-4">
         <button
           onClick={onClose}
-          className="px-4 py-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+          className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
         >
           Cancel
         </button>
         <button
-          onClick={handleDelete}
-          className="px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+          onClick={handleSave}
+          className="px-5 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
-          Delete
+          Save
         </button>
       </div>
     </div>

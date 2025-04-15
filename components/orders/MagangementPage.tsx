@@ -139,7 +139,7 @@ function AverageValueVisual({
         position={[0, 2.5, 0]}
         fontSize={0.8}
         color={textColor}
-        
+        font="/NanumGothic-Bold.json"
         anchorX="center"
         anchorY="middle"
       >
@@ -150,7 +150,7 @@ function AverageValueVisual({
         position={[0, 1.5, 0]}
         fontSize={0.4}
         color={descriptionColor}
-        
+        font="/NanumGothic-Bold.json"
         anchorX="center"
         anchorY="middle"
       >
@@ -193,7 +193,7 @@ const CategoryVisual = React.memo(
           position={[0, 3, 0]}
           fontSize={0.4}
           color={textColor}
-          
+          font="/NanumGothic-Bold.json"
           anchorX="center"
           anchorY="middle"
         >
@@ -224,7 +224,7 @@ const CategoryVisual = React.memo(
                 position={[0, baseY - 0.5, 0]}
                 fontSize={0.3}
                 color={textColor}
-                
+                font="/NanumGothic-Bold.json"
                 anchorX="center"
                 anchorY="middle"
               >
@@ -235,7 +235,7 @@ const CategoryVisual = React.memo(
                 position={[0, baseY + height + 0.5, 0]}
                 fontSize={0.5}
                 color={valueColor}
-                
+                font="/NanumGothic-Bold.json"
                 anchorX="center"
                 anchorY="middle"
               >
@@ -314,7 +314,7 @@ function PeakTimeVisual({
         position={[0, 3, 0]}
         fontSize={0.4}
         color={textColor}
-        
+        font="/NanumGothic-Bold.json"
         anchorX="center"
         anchorY="middle"
       >
@@ -351,7 +351,7 @@ function PeakTimeVisual({
                     position={[0, -0.8, 0]}
                     fontSize={0.4}
                     color={timeRangeColor}
-                    
+                    font="/NanumGothic-Bold.json"
                     anchorX="center"
                     anchorY="middle"
                   >
@@ -362,7 +362,7 @@ function PeakTimeVisual({
                     position={[0, -1.4, 0]}
                     fontSize={0.3}
                     color={dateColor}
-                    
+                    font="/NanumGothic-Bold.json"
                     anchorX="center"
                     anchorY="middle"
                   >
@@ -372,7 +372,7 @@ function PeakTimeVisual({
                     position={[0, height + 0.5, 0]}
                     fontSize={0.4}
                     color={textColor}
-                    
+                    font="/NanumGothic-Bold.json"
                     anchorX="center"
                     anchorY="middle"
                   >
@@ -413,7 +413,7 @@ const PaymentTypeVisual = React.memo(
           position={[0, 3, 0]}
           fontSize={0.4}
           color={textColor}
-          
+          font="/NanumGothic-Bold.json"
           anchorX="center"
           anchorY="middle"
         >
@@ -449,7 +449,7 @@ const PaymentTypeVisual = React.memo(
                 position={[0, -0.5, 0]}
                 fontSize={0.3}
                 color={textColor}
-                
+                font="/NanumGothic-Bold.json"
                 anchorX="center"
                 anchorY="middle"
               >
@@ -460,7 +460,7 @@ const PaymentTypeVisual = React.memo(
                 position={[0, height + 0.3, 0]}
                 fontSize={0.3}
                 color={textColor}
-                
+                font="/NanumGothic-Bold.json"
                 anchorX="center"
                 anchorY="middle"
               >
@@ -471,7 +471,7 @@ const PaymentTypeVisual = React.memo(
                 position={[0, height + 0.7, 0]}
                 fontSize={0.25}
                 color={valueColor}
-                
+                font="/NanumGothic-Bold.json"
                 anchorX="center"
                 anchorY="middle"
               >
@@ -495,7 +495,7 @@ const PaymentTypeVisual = React.memo(
           position={[0, -3, 0]}
           fontSize={0.4}
           color={textColor}
-          
+          font="/NanumGothic-Bold.json"
           anchorX="center"
           anchorY="middle"
         >

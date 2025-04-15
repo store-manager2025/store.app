@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
-import { Receipt } from "../types/receipt";
-import { Order } from "../types/order";
+import { Receipt } from "../../types/receipt";
+import { Order } from "../../types/order";
 
 interface OrderDetailsProps {
   placeName: string;

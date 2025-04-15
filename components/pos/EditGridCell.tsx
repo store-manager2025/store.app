@@ -2,7 +2,7 @@
 import React, { useRef } from "react";
 import { Plus } from "lucide-react";
 import { useDrop } from "react-dnd";
-import MenuButton from "./EditMenuButton";
+import MenuButton from "../menus/EditMenuButton";
 
 type Menu = {
   menuId: number;

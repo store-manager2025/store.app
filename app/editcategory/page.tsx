@@ -1,8 +1,8 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import AddCategoryModal from "../../components/AddCategoryModal";
-import ModifyCategoryModal from "../../components/ModifyCategoryModal";
+import AddCategoryModal from "../../components/menus/AddCategoryModal";
+import ModifyCategoryModal from "../../components/menus/ModifyCategoryModal";
 import axiosInstance from "../../lib/axiosInstance";
 import { ChevronLeft } from "lucide-react";
 import Cookies from "js-cookie";

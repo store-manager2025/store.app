@@ -17,7 +17,7 @@ import axiosInstance from "../../lib/axiosInstance";
 import { useFormStore } from "@/store/formStore";
 import { usePosStore } from "@/store/usePosStore";
 import { useThemeStore } from "@/store/themeStore";
-import Modal from "@/components/Modal";
+import Modal from "@/components/modals/Modal";
 import Spinner from "@/components/Spinner";
 import Cookies from "js-cookie";
 

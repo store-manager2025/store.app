@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useEffect } from "react";
-import { Order, OrderSummary } from "../types/order";
+import { Order, OrderSummary } from "../../types/order";
 import { CreditCard, Banknote } from "lucide-react";
 import SearchBar from "./SearchBar";
 
