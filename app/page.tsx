@@ -6,8 +6,8 @@ import Cookies from "js-cookie";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("test2@naver.com");
+  const [password, setPassword] = useState("dlawpgns1!");
   const [autoLogin, setAutoLogin] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 

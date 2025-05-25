@@ -5,7 +5,7 @@
 @layer base {
   /* 기본 폰트는 Inter로 설정 */
   html {
-    font-family: 'IBM Plex Mono';
+    font-family: 'IBM Plex Mono' !important;
   }
 
   .fade-out {

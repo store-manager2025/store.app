@@ -20,6 +20,14 @@ export default function RootLayout({ children }: RootLayoutProps) {
           defer
           src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
         />
+        <link
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&display=swap"
+          rel="stylesheet"
+        />
+        <script
+          defer
+          src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
+        />
       </head>
       <body style={{ overflowX: "hidden" }}>
         <QueryClientProvider client={queryClient}>
